@@ -8,19 +8,21 @@
 
 ## Preview
 
+<img src="https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg" width="60" align="right" />
+
+### 👑 Los Angeles Lakers (LAL)
+West Conference · Pacific Division
+
+📊 2025-2026 Record: 57W - 35L (62.0%)
+&nbsp;&nbsp;&nbsp;███████████████▌░░░░░░░░░
+
+**📅 Recent Games:**
 ```
-👑 Los Angeles Lakers (LAL)
-   West Conference · Pacific Division
-
-📊 2025-2026 Record: 45W - 22L (67.2%)
-   █████████████████░░░░░░░░
-
-📅 Recent Games:
-   ✅ W 118-105 vs GSW (Jul 20)
-   ❌ L  98-112 @ DEN (Jul 18)
-   ✅ W 125-110 vs PHX (Jul 15)
-   ✅ W 108-101 @ SAC (Jul 13)
-   ✅ W 115-109 vs DAL (Jul 10)
+❌ L 110-115 vs OKC (May 10)
+❌ L 108-131 vs OKC (May 8)
+❌ L 107-125 @ OKC (May 6)
+❌ L  90-108 @ OKC (May 4)
+✅ W  98-78  @ HOU (Apr 30)
 ```
 
 ## Setup
@@ -53,7 +55,7 @@ npm install
 npm start
 ```
 
-## NBA Team Abbreviations
+## NBA Team Abbreviations <img src="https://cdn.nba.com/logos/nba/primary/L/logo.svg" width="30" />
 
 | Team | Abbr | | Team | Abbr |
 |------|------|-|------|------|
