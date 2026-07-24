@@ -72,6 +72,7 @@ npm start
 | LA Clippers | LAC | | Utah Jazz | UTA |
 | Los Angeles Lakers | LAL | | Washington Wizards | WAS |
 | Memphis Grizzlies | MEM | | | |
+| Miami Heat | MIA | | | |
 
 ## Data Source
 
