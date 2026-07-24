@@ -23,10 +23,6 @@ const TEAM_EMOJI = {
   SAC: "👑", SAS: "🤠", TOR: "🦖", UTA: "🎵", WAS: "🧙",
 };
 
-// NBA team logo URLs (cdn.nba.com)
-const TEAM_LOGO_URL = (teamAbbr) =>
-  `https://cdn.nba.com/logos/nba/${getTeamNbaId(teamAbbr)}/global/L/logo.svg`;
-
 // NBA.com team IDs for logo URLs
 const NBA_TEAM_IDS = {
   ATL: 1610612737, BOS: 1610612738, BKN: 1610612751, CHA: 1610612766,
@@ -38,10 +34,6 @@ const NBA_TEAM_IDS = {
   POR: 1610612757, SAC: 1610612758, SAS: 1610612759, TOR: 1610612761,
   UTA: 1610612762, WAS: 1610612764,
 };
-
-function getTeamNbaId(abbr) {
-  return NBA_TEAM_IDS[abbr.toUpperCase()] || 0;
-}
 
 async function fetchTeam(teamAbbr) {
   try {
