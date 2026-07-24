@@ -236,7 +236,8 @@ async function main() {
   }
 
   const emoji = TEAM_EMOJI[team.abbreviation] || "🏀";
-  const logoUrl = TEAM_LOGO_URL(team.abbreviation);
+  const nbaId = NBA_TEAM_IDS[team.abbreviation] || 0;
+  const logoUrl = `https://cdn.nba.com/logos/nba/${nbaId}/global/L/logo.svg`;
 
   console.log(`Found: ${team.full_name} (${team.abbreviation})`);
   console.log(`Logo: ${logoUrl}`);
@@ -248,9 +249,13 @@ async function main() {
 
   const lines = [];
 
+  // Team logo
+  lines.push(`<img src="${logoUrl}" width="60" align="right" />`);
+  lines.push("");
+
   // Header
-  lines.push(`${emoji} ${team.full_name} (${team.abbreviation})`);
-  lines.push(`   ${team.conference} Conference · ${team.division} Division`);
+  lines.push(`### ${emoji} ${team.full_name} (${team.abbreviation})`);
+  lines.push(`${team.conference} Conference · ${team.division} Division`);
   lines.push("");
 
   // Season record
@@ -264,10 +269,12 @@ async function main() {
 
   // Recent games
   if (recentGames.length > 0) {
-    lines.push("📅 Recent Games:");
+    lines.push("**📅 Recent Games:**");
+    lines.push("```");
     for (const game of recentGames) {
-      lines.push(`   ${formatGameResult(game, team.id)}`);
+      lines.push(formatGameResult(game, team.id));
     }
+    lines.push("```");
   } else {
     lines.push("📅 No recent games found");
   }
@@ -299,7 +306,7 @@ async function updateGist(team, content, emoji) {
       gist_id: gistId,
       files: {
         [filename]: {
-          filename: `${emoji} ${team.full_name} — NBA`,
+          filename: `${emoji} ${team.full_name} — NBA.md`,
           content,
         },
       },

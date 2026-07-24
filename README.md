@@ -71,8 +71,7 @@ npm start
 | Indiana Pacers | IND | | Toronto Raptors | TOR |
 | LA Clippers | LAC | | Utah Jazz | UTA |
 | Los Angeles Lakers | LAL | | Washington Wizards | WAS |
-| Memphis Grizzlies | MEM | | | |
-| Miami Heat | MIA | | | |
+| Memphis Grizzlies | MEM | | Miami Heat | MIA |
 
 ## Data Source
 
