@@ -1,0 +1,17 @@
+name: Update NBA Gist
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Every 6 hours
+  workflow_dispatch:
+jobs:
+  update-gist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update gist
+        uses: ./
+        env:
+          GIST_ID: ${{ secrets.GIST_ID }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          BDL_API_KEY: ${{ secrets.BDL_API_KEY }}
+          NBA_TEAM: ${{ secrets.NBA_TEAM }}
