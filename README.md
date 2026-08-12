@@ -31,7 +31,6 @@ West Conference · Pacific Division
 
 1. Create a new public GitHub Gist at [gist.github.com](https://gist.github.com/) — give it any filename/content.
 2. Create a GitHub token with the `gist` scope: [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
-3. Create a free BallDontLie API account: [app.balldontlie.io](https://app.balldontlie.io) and copy your API key.
 
 ### Project Setup
 
@@ -43,7 +42,6 @@ West Conference · Pacific Division
 |--------|-------------|
 | `GIST_ID` | The ID from your gist URL (e.g., `6d5f84419863089a167387da62dd7081`) |
 | `GH_TOKEN` | GitHub token with `gist` scope |
-| `BDL_API_KEY` | Your BallDontLie API key |
 | `NBA_TEAM` | Team abbreviation (see table below) |
 
 ### Run Locally
@@ -77,7 +75,7 @@ npm start
 
 ## Data Source
 
-Team data powered by the [BallDontLie API](https://www.balldontlie.io/) (free tier).
+Team data powered by ESPN's public APIs (no API key required).
 
 Team logos available at: `https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg`
 
