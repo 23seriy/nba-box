@@ -1,7 +1,7 @@
 name: "nba-box"
 description: "🏀 Update a pinned gist to contain your favourite NBA team stats"
 branding:
-  icon: "activity"
+  icon: "award"
   color: "orange"
 runs:
   using: "node20"
