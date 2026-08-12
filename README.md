@@ -53,7 +53,7 @@ npm install
 npm start
 ```
 
-## NBA Team Abbreviations
+## <picture><source media="(prefers-color-scheme: dark)" srcset="https://a.espncdn.com/i/teamlogos/leagues/500-dark/nba.png"><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nba.png" alt="NBA logo" height="28"></picture> NBA Team Abbreviations
 
 | | Team | Abbr | | | Team | Abbr |
 |---|------|------|-|---|------|------|
