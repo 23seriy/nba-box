@@ -5,11 +5,17 @@ const { Octokit } = require("@octokit/rest");
 const {
   GIST_ID: gistId,
   GH_TOKEN: githubToken,
-  BDL_API_KEY: bdlApiKey,
   NBA_TEAM: nbaTeamAbbr,
 } = process.env;
 
-const BDL_BASE = "https://api.balldontlie.io/v1";
+const ESPN_BASE = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba";
+const ESPN_BASE_V2 = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba";
+const ESPN_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+  "Accept": "application/json",
+  "Origin": "https://www.espn.com",
+  "Referer": "https://www.espn.com/",
+};
 
 const octokit = new Octokit({ auth: `token ${githubToken}` });
 
@@ -35,91 +41,127 @@ const NBA_TEAM_IDS = {
   UTA: 1610612762, WAS: 1610612764,
 };
 
+const ESPN_TEAM_IDS = {
+  ATL: 1,  BOS: 2,  BKN: 17, CHA: 30, CHI: 4,  CLE: 5,  DAL: 6,  DEN: 7,
+  DET: 8,  GSW: 9,  HOU: 10, IND: 11, LAC: 12, LAL: 13, MEM: 29, MIA: 14,
+  MIL: 15, MIN: 16, NOP: 3,  NYK: 18, OKC: 25, ORL: 19, PHI: 20, PHX: 21,
+  POR: 22, SAC: 23, SAS: 24, TOR: 28, UTA: 26, WAS: 27,
+};
+
+const ESPN_ABBR = {
+  GSW: "GS", NOP: "NO", NYK: "NY", SAS: "SA", UTA: "UTAH", WAS: "WSH",
+};
+
 async function fetchTeam(teamAbbr) {
   try {
-    const { data } = await axios.get(`${BDL_BASE}/teams`, {
-      headers: { Authorization: bdlApiKey },
-    });
-    const team = data.data.find(
-      (t) => t.abbreviation.toUpperCase() === teamAbbr.toUpperCase()
-    );
-    if (!team) {
-      console.error(`Team ${teamAbbr} not found`);
+    const upper = teamAbbr.toUpperCase();
+    const espnId = ESPN_TEAM_IDS[upper];
+    if (!espnId) {
+      console.error(`Unknown NBA team: ${upper}`);
       return null;
     }
-    return team;
+    const { data } = await axios.get(`${ESPN_BASE}/teams/${espnId}`, { headers: ESPN_HEADERS });
+    const team = data.team;
+    if (!team) return null;
+    return {
+      id: espnId,
+      abbreviation: upper,
+      city: team.location || "",
+      name: team.name,
+      full_name: team.displayName,
+      conference: "",
+      division: "",
+    };
   } catch (error) {
-    console.error(`Failed to fetch team: ${error.message}`);
+    console.error(`Failed to fetch NBA team: ${error.message}`);
     return null;
   }
 }
 
-async function fetchRecentGames(teamId, count = 5) {
+async function fetchRecentGames(teamAbbr, count = 5) {
   try {
-    const today = new Date();
-    // Look back 180 days to cover offseason gaps (no NBA games Jul-Sep)
-    const pastDate = new Date(today);
-    pastDate.setDate(today.getDate() - 180);
+    const upper = teamAbbr.toUpperCase();
+    const espnId = ESPN_TEAM_IDS[upper];
+    const espnAbbr = ESPN_ABBR[upper] || upper;
+    const now = new Date();
+    const season = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
 
-    const { data } = await axios.get(`${BDL_BASE}/games`, {
-      headers: { Authorization: bdlApiKey },
-      params: {
-        "team_ids[]": teamId,
-        start_date: pastDate.toISOString().split("T")[0],
-        end_date: today.toISOString().split("T")[0],
-        per_page: 50,
-      },
-    });
+    const [regData, postData] = await Promise.all([
+      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${season}&seasontype=2`, { headers: ESPN_HEADERS }),
+      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${season}&seasontype=3`, { headers: ESPN_HEADERS }),
+    ]);
 
-    return data.data
-      .filter((g) => g.status === "Final")
+    const events = [
+      ...(regData.data.events || []).map((e) => ({ ...e, gameType: 2 })),
+      ...(postData.data.events || []).map((e) => ({ ...e, gameType: 3 })),
+    ];
+
+    return events
+      .filter((e) => e.competitions?.[0]?.status?.type?.completed)
+      .map((e) => {
+        const comp = e.competitions[0];
+        const teamComp = comp.competitors.find((c) => c.team?.abbreviation?.toUpperCase() === espnAbbr.toUpperCase());
+        const oppComp = comp.competitors.find((c) => c.team?.abbreviation?.toUpperCase() !== espnAbbr.toUpperCase());
+        if (!teamComp || !oppComp) return null;
+        const teamScore = teamComp.score?.value ?? parseFloat(teamComp.score) ?? 0;
+        const oppScore = oppComp.score?.value ?? parseFloat(oppComp.score) ?? 0;
+        const isHome = teamComp.homeAway === "home";
+        return {
+          date: e.date,
+          postseason: e.gameType === 3,
+          status: "Final",
+          home_team: {
+            id: isHome ? espnId : 0,
+            abbreviation: isHome ? upper : oppComp.team.abbreviation,
+          },
+          visitor_team: {
+            id: isHome ? 0 : espnId,
+            abbreviation: isHome ? oppComp.team.abbreviation : upper,
+          },
+          home_team_score: isHome ? teamScore : oppScore,
+          visitor_team_score: isHome ? oppScore : teamScore,
+        };
+      })
+      .filter(Boolean)
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, count);
   } catch (error) {
-    console.error(`Failed to fetch games: ${error.message}`);
+    console.error(`Failed to fetch NBA games: ${error.message}`);
     return [];
   }
 }
 
-async function fetchSeasonRecord(teamId) {
+async function fetchSeasonRecord(teamAbbr) {
   try {
-    const currentYear = new Date().getFullYear();
-    const season =
-      new Date().getMonth() >= 9 ? currentYear : currentYear - 1;
-
-    const { data } = await axios.get(`${BDL_BASE}/games`, {
-      headers: { Authorization: bdlApiKey },
-      params: {
-        "team_ids[]": teamId,
-        seasons: [season],
-        per_page: 100,
-      },
-    });
-
-    const finalGames = data.data.filter((g) => g.status === "Final");
-    let wins = 0;
-    let losses = 0;
-
-    for (const game of finalGames) {
-      const isHome = game.home_team.id === teamId;
-      const teamScore = isHome
-        ? game.home_team_score
-        : game.visitor_team_score;
-      const oppScore = isHome
-        ? game.visitor_team_score
-        : game.home_team_score;
-
-      if (teamScore > oppScore) {
-        wins++;
-      } else {
-        losses++;
+    const upper = teamAbbr.toUpperCase();
+    const espnAbbr = ESPN_ABBR[upper] || upper;
+    const now = new Date();
+    const season = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
+    const { data } = await axios.get(
+      `${ESPN_BASE_V2}/standings?level=3&season=${season}&seasontype=2`,
+      { headers: ESPN_HEADERS }
+    );
+    for (const conf of (data.children || [])) {
+      for (const div of (conf.children || [])) {
+        const entry = (div.standings?.entries || []).find(
+          (e) => e.team?.abbreviation?.toUpperCase() === espnAbbr.toUpperCase()
+        );
+        if (entry) {
+          const stats = Object.fromEntries((entry.stats || []).map((s) => [s.name, s.value]));
+          return {
+            wins: stats.wins || 0,
+            losses: stats.losses || 0,
+            season,
+            conference: conf.name?.replace(" Conference", "") || "",
+            division: div.name?.replace(" Division", "") || "",
+          };
+        }
       }
     }
-
-    return { wins, losses, season };
+    return { wins: 0, losses: 0, season, conference: "", division: "" };
   } catch (error) {
-    console.error(`Failed to fetch season record: ${error.message}`);
-    return { wins: 0, losses: 0, season: 0 };
+    console.error(`Failed to fetch NBA standings: ${error.message}`);
+    return { wins: 0, losses: 0, season: new Date().getFullYear() - 1, conference: "", division: "" };
   }
 }
 
@@ -221,10 +263,15 @@ async function main() {
       console.error("Could not find team. Check NBA_TEAM abbreviation.");
       process.exit(1);
     }
-    // Sequential calls with delay to respect free-tier rate limit (5 req/min)
-    recentGames = await fetchRecentGames(team.id, 5);
-    await new Promise((r) => setTimeout(r, 15000));
-    record = await fetchSeasonRecord(team.id);
+    const standingsData = await fetchSeasonRecord(teamAbbr);
+    team.conference = standingsData.conference;
+    team.division = standingsData.division;
+    recentGames = await fetchRecentGames(teamAbbr, 5);
+    record = {
+      wins: standingsData.wins,
+      losses: standingsData.losses,
+      season: standingsData.season,
+    };
   }
 
   const emoji = TEAM_EMOJI[team.abbreviation] || "🏀";
