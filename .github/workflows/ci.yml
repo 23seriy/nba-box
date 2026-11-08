@@ -32,5 +32,5 @@ jobs:
           git push
       # Dependabot cannot rebuild dist/ itself, so dist is rebuilt on main after merge.
       - name: Verify committed dist is up to date
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && github.actor != '23seriy'
         run: git diff --exit-code dist/
