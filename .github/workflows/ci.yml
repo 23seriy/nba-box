@@ -7,12 +7,29 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      # Required so Dependabot PRs can push the rebuilt dist/ back to their branch.
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - run: npm install
       - run: npm run lint
       - run: npm run build
+      - name: Commit rebuilt dist for Dependabot PRs
+        if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' || github.actor == '23seriy'
+        run: |
+          if git diff --quiet -- dist/; then
+            echo "dist/ is already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/
+          git commit -m "chore(deps): rebuild dist bundle"
+          git push
       - run: git diff --exit-code dist/
