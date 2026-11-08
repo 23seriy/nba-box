@@ -22,6 +22,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - name: Commit rebuilt dist for Dependabot PRs
+        id: rebuild
         if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' || github.actor == '23seriy'
         run: |
           if git diff --quiet -- dist/; then
