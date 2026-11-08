@@ -7,6 +7,9 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      # Required to push the rebuilt dist/ back to main after a merge.
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,4 +18,19 @@ jobs:
       - run: npm install
       - run: npm run lint
       - run: npm run build
-      - run: git diff --exit-code dist/
+      - name: Commit rebuilt dist on main
+        if: github.event_name == 'push'
+        run: |
+          if git diff --quiet -- dist/; then
+            echo "dist/ is already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/
+          git commit -m "chore(build): rebuild dist bundle"
+          git push
+      # Dependabot cannot rebuild dist/ itself, so dist is rebuilt on main after merge.
+      - name: Verify committed dist is up to date
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        run: git diff --exit-code dist/
