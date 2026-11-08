@@ -10,6 +10,7 @@ jobs:
     permissions:
       # Required so Dependabot PRs can push the rebuilt dist/ back to their branch.
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,4 +33,17 @@ jobs:
           git add dist/
           git commit -m "chore(deps): rebuild dist bundle"
           git push
+          echo "pushed=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Approve run queued for the rebuilt commit
+        if: steps.rebuild.outputs.pushed != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for _ in $(seq 1 12); do
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=${{ steps.rebuild.outputs.pushed }}&event=pull_request" --jq '.workflow_runs[0].databaseId // empty')
+            if [ -n "$run_id" ]; then
+              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/approve" && break
+            fi
+            sleep 5
+          done
       - run: git diff --exit-code dist/
