@@ -55,12 +55,28 @@ const ESPN_ABBR = {
   GSW: "GS", NOP: "NO", NYK: "NY", SAS: "SA", UTA: "UTAH", WAS: "WSH",
 };
 
-// ESPN's NBA "season" is the year the season ends (2027 = the 2026-27 season).
-// Read the year in US Eastern time, where NBA games are dated.
+// ESPN's NBA "season" is the year the season ends, so a season that starts in
+// October is numbered with the following year (2027 = 2026-27). The year is read
+// in US Eastern time, where NBA games are dated.
 function espnSeason(date = new Date()) {
-  return Number(
+  const year = Number(
     new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: "America/New_York" }).format(date)
   );
+  return isRegularSeasonMonth(date) ? year + 1 : year;
+}
+
+// NBA seasons start in October, so August and September still belong to the previous one.
+function isRegularSeasonMonth(date = new Date()) {
+  const month = Number(
+    new Intl.DateTimeFormat("en-US", { month: "numeric", timeZone: "America/New_York" }).format(date)
+  );
+  return month >= 10;
+}
+
+// ESPN's schedule query numbers a season by the year it ends for the regular
+// season, but by the year it starts for the postseason (one year earlier).
+function scheduleSeasons(season) {
+  return { regularSeason: season, postseason: season - 1 };
 }
 
 function formatStanding(summary) {
@@ -101,10 +117,11 @@ async function fetchSeasonSchedule(teamAbbr, season) {
     const upper = teamAbbr.toUpperCase();
     const espnId = ESPN_TEAM_IDS[upper];
     const espnAbbr = ESPN_ABBR[upper] || upper;
+    const { regularSeason, postseason } = scheduleSeasons(season);
 
     const [regData, postData] = await Promise.all([
-      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${season}&seasontype=2`, { headers: ESPN_HEADERS }),
-      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${season}&seasontype=3`, { headers: ESPN_HEADERS }),
+      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${regularSeason}&seasontype=2`, { headers: ESPN_HEADERS }),
+      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${postseason}&seasontype=3`, { headers: ESPN_HEADERS }),
     ]);
 
     const events = [
@@ -145,7 +162,7 @@ function toScore(score) {
   return score?.value ?? parseFloat(score) ?? 0;
 }
 
-async function fetchSeasonRecord(teamAbbr, season) {
+async function fetchStandings(teamAbbr, season) {
   try {
     const espnAbbr = ESPN_ABBR[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
     const { data } = await axios.get(
@@ -179,7 +196,7 @@ async function fetchSeasonRecord(teamAbbr, season) {
 // completed one during the offseason, when no game of the current season has been played.
 async function fetchTeamSeason(teamAbbr) {
   const currentSeason = espnSeason();
-  let record = await fetchSeasonRecord(teamAbbr, currentSeason);
+  let record = await fetchStandings(teamAbbr, currentSeason);
   let games = await fetchSeasonSchedule(teamAbbr, currentSeason);
 
   if (games.some((g) => g.completed)) {
@@ -188,7 +205,7 @@ async function fetchTeamSeason(teamAbbr) {
 
   const previousSeason = currentSeason - 1;
   console.log(`No games played in the ${currentSeason} season yet, showing ${previousSeason}.`);
-  record = (await fetchSeasonRecord(teamAbbr, previousSeason)) || record;
+  record = (await fetchStandings(teamAbbr, previousSeason)) || record;
   games = await fetchSeasonSchedule(teamAbbr, previousSeason);
 
   return { season: previousSeason, record, games };
@@ -447,4 +464,5 @@ module.exports = {
   getDemoData,
   validateConfig,
   renderGist,
+  scheduleSeasons,
 };
