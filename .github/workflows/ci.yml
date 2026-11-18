@@ -20,6 +20,7 @@ jobs:
           cache: "npm"
       - run: npm install
       - run: npm run lint
+      - run: npm test
       - run: npm run build
       - name: Commit rebuilt dist on main
         if: github.event_name == 'push'
@@ -37,3 +38,5 @@ jobs:
       - name: Verify committed dist is up to date
         if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         run: git diff --exit-code dist/
+      - name: Verify the action bundle runs
+        run: NBA_TEAM=LAL node dist/index.js --demo
