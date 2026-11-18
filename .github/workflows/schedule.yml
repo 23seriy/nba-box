@@ -6,16 +6,33 @@ on:
 jobs:
   update-gist:
     runs-on: ubuntu-latest
+    permissions:
+      # Required to commit the refreshed README preview back to main.
+      contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Needed to commit the refreshed README preview back to main.
+          persist-credentials: true
       - uses: actions/setup-node@v7
         with:
           node-version: "26"
           # Latest Node 26 release, so setup-node does not need a pinned patch version.
           check-latest: true
       - name: Update gist
-        run: node dist/index.js
+        run: node dist/index.js --update-readme
         env:
           GIST_ID: ${{ secrets.GIST_ID }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           NBA_TEAM: ${{ secrets.NBA_TEAM }}
+      - name: Commit refreshed README preview
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "README preview is already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs(readme): refresh preview from the live gist"
+          git push

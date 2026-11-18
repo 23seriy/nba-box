@@ -10,27 +10,31 @@
 
 ## Preview
 
+<!-- preview:start -->
+
 <img src="https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg" width="60" align="right" />
 
 ### 👑 Los Angeles Lakers (LAL)
 Western Conference · Pacific Division
 
-📊 2025-2026 Record: 53W - 29L (64.6%)
-   ████████████████▏░░░░░░░░
+📊 2026-2027 Record: 13W - 2L (86.7%)
+   █████████████████████▋░░░
 🏅 1st in Pacific Division
 
 **📅 Recent Games:**
 ```
-❌ L 110-115 vs OKC (May 11)
-❌ L 108-131 vs OKC (May 9)
-❌ L 107-125 @ OKC (May 7)
-❌ L  90-108 @ OKC (May 5)
-✅ W  98-78  @ HOU (May 1)
+✅ W 118-114 vs CHA (Nov 17)
+✅ W 131-123 @ PHX (Nov 15)
+✅ W 123-112 @ MIL (Nov 11)
+✅ W 124-114 @ ATL (Nov 9)
+✅ W 121-116 @ DET (Nov 8)
 ```
 
-During the season, a 🏟️ next-game line with the tip-off time in ET is appended.
+🏟️ Next: vs UTAH — Nov 18, 10:00 PM ET
 
-**[Live example](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — a real gist, refreshed every day.
+<!-- preview:end -->
+
+**[Live example](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — a real gist, refreshed every day. This preview is updated from it automatically.
 
 ## Setup
 
@@ -65,6 +69,8 @@ npm install
 npm start
 # Or preview the output offline, no GIST_ID/GH_TOKEN needed:
 NBA_TEAM=LAL node index.js --demo
+# Also refresh the README preview block (used by the daily workflow):
+NBA_TEAM=LAL node index.js --update-readme
 ```
 
 The gist is refreshed automatically every day at 00:00 UTC. The season is detected from ESPN, so when
