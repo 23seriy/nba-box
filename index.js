@@ -2,11 +2,7 @@ require("dotenv").config({ quiet: true });
 const axios = require("axios");
 const { Octokit } = require("@octokit/rest");
 
-const {
-  GIST_ID: gistId,
-  GH_TOKEN: githubToken,
-  NBA_TEAM: nbaTeamAbbr,
-} = process.env;
+const { GH_TOKEN: githubToken } = process.env;
 
 const ESPN_BASE = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba";
 const ESPN_BASE_V2 = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba";
@@ -18,6 +14,7 @@ const ESPN_HEADERS = {
 };
 
 const octokit = new Octokit({ auth: `token ${githubToken}` });
+const DEFAULT_TEAM = "LAL";
 
 // NBA team logos as ASCII art abbreviations with emoji
 const TEAM_EMOJI = {
@@ -109,33 +106,36 @@ async function fetchSeasonSchedule(teamAbbr, season) {
     ];
 
     return events
-      .filter((e) => e.competitions?.[0])
-      .map((e) => {
-        const comp = e.competitions[0];
-        const completed = Boolean(comp.status?.type?.completed);
-        const teamComp = comp.competitors?.find((c) => c.team?.abbreviation?.toUpperCase() === espnAbbr);
-        const oppComp = comp.competitors?.find((c) => c.team?.abbreviation?.toUpperCase() !== espnAbbr);
-        if (!teamComp || !oppComp) return null;
-        const teamScore = teamComp.score?.value ?? parseFloat(teamComp.score) ?? 0;
-        const oppScore = oppComp.score?.value ?? parseFloat(oppComp.score) ?? 0;
-        const isHome = teamComp.homeAway === "home";
-        return {
-          date: e.date,
-          postseason: e.gameType === 3,
-          completed,
-          status: comp.status?.type?.detail || "Scheduled",
-          opponent: oppComp.team.abbreviation,
-          isHome,
-          teamScore,
-          oppScore,
-        };
-      })
+      .map((e) => parseGame(e, espnAbbr))
       .filter(Boolean)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
   } catch (error) {
     console.error(`Failed to fetch NBA games: ${error.message}`);
     return [];
   }
+}
+
+function parseGame(event, teamAbbr) {
+  const comp = event.competitions?.[0];
+  if (!comp) return null;
+  const isTeam = (c) => c.team?.abbreviation?.toUpperCase() === teamAbbr;
+  const teamComp = comp.competitors?.find(isTeam);
+  const oppComp = comp.competitors?.find((c) => !isTeam(c));
+  if (!teamComp || !oppComp) return null;
+  return {
+    date: event.date,
+    postseason: event.gameType === 3,
+    completed: Boolean(comp.status?.type?.completed),
+    opponent: oppComp.team.abbreviation,
+    isHome: teamComp.homeAway === "home",
+    teamScore: toScore(teamComp.score),
+    oppScore: toScore(oppComp.score),
+  };
+}
+
+function toScore(score) {
+  if (typeof score === "number") return score;
+  return score?.value ?? parseFloat(score) ?? 0;
 }
 
 async function fetchSeasonRecord(teamAbbr, season) {
@@ -188,15 +188,15 @@ async function fetchTeamSeason(teamAbbr) {
 }
 
 function formatGameResult(game) {
-  const won = game.teamScore > game.oppScore;
+  const result = game.teamScore > game.oppScore ? "W" : "L";
+  const icon = result === "W" ? "✅" : "❌";
   const prefix = game.isHome ? "vs" : "@";
-  const result = won ? "W" : "L";
   const dateStr = new Date(game.date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
 
-  return `${result === "W" ? "✅" : "❌"} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
+  return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
 }
 
 function formatNextGame(game) {
@@ -245,7 +245,8 @@ function getDemoData(teamAbbr) {
     id: 1, abbreviation: abbr, city: abbr, name: abbr,
     full_name: `${abbr} Team`, conference: "West", division: "Pacific",
   };
-  const opponents = ["GSW", "DEN", "PHX", "SAC", "DAL"].filter((t) => t !== abbr);
+  // DEMO_TEAMS entries use ESPN's "GS" rather than "GSW".
+  const opponents = ["GSW", "DEN", "PHX", "SAC", "DAL"].map((t) => ESPN_ABBR[t] || t).filter((t) => t !== abbr);
   const games = opponents.slice(0, 5).map((opp, i) => {
     const won = Math.random() > 0.4;
     const teamScore = won ? 105 + Math.floor(Math.random() * 20) : 95 + Math.floor(Math.random() * 10);
@@ -256,7 +257,8 @@ function getDemoData(teamAbbr) {
       date: d.toISOString(),
       completed: true,
       isHome: i % 2 === 0,
-      opponent: opp,
+      // Match real output, where ESPN abbreviations like "GS" are used.
+      opponent: ESPN_ABBR[opp] || opp,
       teamScore,
       oppScore,
     };
@@ -271,56 +273,32 @@ function getDemoData(teamAbbr) {
 
 const isDemo = process.argv.includes("--demo");
 
-function validateConfig() {
+function validateConfig(env = process.env, { demo = false } = {}) {
+  const config = {
+    gistId: env.GIST_ID,
+    githubToken: env.GH_TOKEN,
+    nbaTeam: env.NBA_TEAM,
+  };
   const missing = [];
-  if (!gistId) missing.push("GIST_ID");
-  if (!githubToken) missing.push("GH_TOKEN");
-  if (!nbaTeamAbbr) missing.push("NBA_TEAM");
+  if (!config.gistId) missing.push("GIST_ID");
+  if (!config.githubToken) missing.push("GH_TOKEN");
+  if (!config.nbaTeam) missing.push("NBA_TEAM");
   // Demo previews render offline, so only a team is needed.
-  if (missing.length > 0 && !(isDemo && missing.length === 2 && !missing.includes("NBA_TEAM"))) {
+  if (missing.length > 0 && !(demo && missing.length === 2 && !missing.includes("NBA_TEAM"))) {
     throw new Error(
       `Missing required environment variable(s): ${missing.join(", ")}. See sample.env for setup.`
     );
   }
-  if (!ESPN_TEAM_IDS[nbaTeamAbbr.toUpperCase()]) {
-    throw new Error(`Unknown NBA_TEAM "${nbaTeamAbbr}". See the team table in README.md.`);
+  if (config.nbaTeam && !ESPN_TEAM_IDS[config.nbaTeam.toUpperCase()]) {
+    throw new Error(`Unknown NBA_TEAM "${config.nbaTeam}". See the team table in README.md.`);
   }
-  if (isDemo) {
-    console.log("Preview only (--demo): the gist will not be updated.");
-  }
+  return config;
 }
 
-async function main() {
-  validateConfig();
-
-  const teamAbbr = nbaTeamAbbr.toUpperCase();
-
-  console.log(`🏀 ${isDemo ? "[DEMO] " : ""}Fetching data for ${teamAbbr}...`);
-
-  let team, games, record, season;
-
-  if (isDemo) {
-    const demo = getDemoData(teamAbbr);
-    ({ team, games, record, season } = demo);
-    console.log(`[DEMO] Using sample data for ${team.full_name}`);
-  } else {
-    team = await fetchTeam(teamAbbr);
-    if (!team) {
-      throw new Error(`Could not find team "${teamAbbr}". Check the NBA_TEAM abbreviation.`);
-    }
-    ({ games, record, season } = await fetchTeamSeason(teamAbbr));
-    if (record) {
-      team.conference = record.conference;
-      team.division = record.division;
-    }
-  }
-
+function renderGist({ team, games, record, season }) {
   const emoji = TEAM_EMOJI[team.abbreviation] || "🏀";
   const nbaId = NBA_TEAM_IDS[team.abbreviation] || 0;
   const logoUrl = `https://cdn.nba.com/logos/nba/${nbaId}/global/L/logo.svg`;
-
-  console.log(`Found: ${team.full_name} (${team.abbreviation})`);
-  console.log(`Logo: ${logoUrl}`);
 
   const wins = record?.wins ?? 0;
   const losses = record?.losses ?? 0;
@@ -369,7 +347,38 @@ async function main() {
     lines.push(formatNextGame(nextGame));
   }
 
-  const content = lines.join("\n");
+  return { emoji, content: lines.join("\n") };
+}
+
+async function main(env = process.env) {
+  const config = validateConfig(env, { demo: isDemo });
+  const teamAbbr = (config.nbaTeam || DEFAULT_TEAM).toUpperCase();
+  if (isDemo) {
+    console.log("Preview only (--demo): the gist will not be updated.");
+  }
+
+  console.log(`🏀 ${isDemo ? "[DEMO] " : ""}Fetching data for ${teamAbbr}...`);
+
+  let team, games, record, season;
+
+  if (isDemo) {
+    ({ team, games, record, season } = getDemoData(teamAbbr));
+    console.log(`[DEMO] Using sample data for ${team.full_name}`);
+  } else {
+    team = await fetchTeam(teamAbbr);
+    if (!team) {
+      throw new Error(`Could not find team "${teamAbbr}". Check the NBA_TEAM abbreviation.`);
+    }
+    ({ games, record, season } = await fetchTeamSeason(teamAbbr));
+    if (record) {
+      team.conference = record.conference;
+      team.division = record.division;
+    }
+  }
+
+  console.log(`Found: ${team.full_name} (${team.abbreviation})`);
+
+  const { emoji, content } = renderGist({ team, games, record, season });
   console.log("\n--- Gist Preview ---");
   console.log(content);
   console.log("--- End Preview ---\n");
@@ -377,14 +386,14 @@ async function main() {
   if (isDemo) {
     console.log("⚠️  Skipping gist update (demo mode)");
   } else {
-    await updateGist(team, content, emoji);
+    await updateGist(config, team, content, emoji);
   }
 }
 
-async function updateGist(team, content, emoji) {
+async function updateGist(config, team, content, emoji) {
   let gist;
   try {
-    gist = await octokit.gists.get({ gist_id: gistId });
+    gist = await octokit.gists.get({ gist_id: config.gistId });
   } catch (error) {
     throw new Error(`Unable to get gist: ${error.message}`, { cause: error });
   }
@@ -392,7 +401,7 @@ async function updateGist(team, content, emoji) {
   try {
     const filename = Object.keys(gist.data.files)[0];
     await octokit.gists.update({
-      gist_id: gistId,
+      gist_id: config.gistId,
       files: {
         [filename]: {
           filename: `${emoji} ${team.full_name} — NBA.md`,
@@ -406,11 +415,21 @@ async function updateGist(team, content, emoji) {
   }
 }
 
-(async () => {
-  try {
-    await main();
-  } catch (error) {
+if (require.main === module) {
+  main().catch((error) => {
     console.error(`❌ ${error.message}`);
     process.exit(1);
-  }
-})();
+  });
+}
+
+module.exports = {
+  espnSeason,
+  formatStanding,
+  parseGame,
+  formatGameResult,
+  formatNextGame,
+  generateBarChart,
+  getDemoData,
+  validateConfig,
+  renderGist,
+};

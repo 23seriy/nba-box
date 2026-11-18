@@ -9,7 +9,7 @@ Thanks for your interest in contributing! Here's how you can help.
 3. Create a branch for your change: `git checkout -b feat/your-feature`
 4. Install dependencies: `npm install`
 5. Make your changes
-6. Run the linter: `npm run lint`
+6. Run the linter and tests: `npm run lint && npm test`
 7. Test with demo mode: `NBA_TEAM=LAL node index.js --demo`
 8. Commit and push your branch
 9. Open a Pull Request
@@ -41,7 +41,7 @@ NBA_TEAM=BOS node index.js --demo
 ## Pull Request Guidelines
 
 - Keep PRs focused on a single change
-- Run `npm run lint` before submitting
+- Run `npm run lint` and `npm test` before submitting
 - Update the README if your change affects usage
 - Add a clear description of what your PR does
 

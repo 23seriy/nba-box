@@ -1,0 +1,4 @@
+# CI fails when the committed action bundle does not match dist/ built on Linux.
+# Pin the platform-independent bundle to LF so the check does not depend on the
+# local core.autocrlf setting.
+dist/index.js text eol=lf
