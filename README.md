@@ -4,6 +4,8 @@
 
 📌✨ For more pinned-gist projects like this one, check out: [awesome-pinned-gists](https://github.com/matchai/awesome-pinned-gists)
 
+🔎 **[See a live example gist →](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)**
+
 ---
 
 ## Preview
@@ -27,6 +29,8 @@ Western Conference · Pacific Division
 ```
 
 During the season, a 🏟️ next-game line with the tip-off time in ET is appended.
+
+**[Live example](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — a real gist, refreshed every day.
 
 ## Setup
 
@@ -68,6 +72,9 @@ no game of the upcoming season has been played yet, the most recently completed 
 playoff games) is shown instead of an empty record.
 
 ## ❓ FAQ
+
+**The gist still shows the previous season's record during the offseason** — that is expected: until a
+game of the new season has been played, the most recently completed season is shown.
 
 **The workflow fails with `Missing required environment variable(s)`** — one of `GIST_ID`, `GH_TOKEN`
 or `NBA_TEAM` is not set as a repository secret (Settings → Secrets and variables → Actions).
