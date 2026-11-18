@@ -11,19 +11,22 @@
 <img src="https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg" width="60" align="right" />
 
 ### 👑 Los Angeles Lakers (LAL)
-West Conference · Pacific Division
+Western Conference · Pacific Division
 
-📊 2025-2026 Record: 57W - 35L (62.0%)
-&nbsp;&nbsp;&nbsp;███████████████▌░░░░░░░░░
+📊 2025-2026 Record: 53W - 29L (64.6%)
+   ████████████████▏░░░░░░░░
+🏅 1st in Pacific Division
 
 **📅 Recent Games:**
 ```
-❌ L 110-115 vs OKC (May 10)
-❌ L 108-131 vs OKC (May 8)
-❌ L 107-125 @ OKC (May 6)
-❌ L  90-108 @ OKC (May 4)
-✅ W  98-78  @ HOU (Apr 30)
+❌ L 110-115 vs OKC (May 11)
+❌ L 108-131 vs OKC (May 9)
+❌ L 107-125 @ OKC (May 7)
+❌ L  90-108 @ OKC (May 5)
+✅ W  98-78  @ HOU (May 1)
 ```
+
+During the season, a 🏟️ next-game line with the tip-off time in ET is appended.
 
 ## Setup
 
@@ -31,7 +34,6 @@ West Conference · Pacific Division
 
 1. Create a new public GitHub Gist at [gist.github.com](https://gist.github.com/) — give it any filename/content.
 2. Create a GitHub token with the `gist` scope: [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
-3. Run the workflow once (**Actions → Update NBA Gist → Run workflow**) to populate the gist right away.
 
 ### Project Setup
 
@@ -45,20 +47,23 @@ West Conference · Pacific Division
 | `GH_TOKEN` | GitHub token with `gist` scope |
 | `NBA_TEAM` | Team abbreviation (see table below) |
 
+4. Run the workflow once (**Actions → Update NBA Gist → Run workflow**) to populate the gist right away.
+5. Pin the gist to your profile: gist → **Pin to profile**.
+
 ### Run Locally
 
 ```bash
 cp sample.env .env
-# Fill in your values in .env
+# Fill in your values in .env, then delete .env before committing
 npm install
 npm start
 # Or preview the output offline, no GIST_ID/GH_TOKEN needed:
 NBA_TEAM=LAL node index.js --demo
 ```
 
-The gist is refreshed every 6 hours. The season is detected automatically from ESPN, so when no game
-of the upcoming season has been played yet, the most recently completed season (including playoff
-games) is shown instead of an empty record.
+The gist is refreshed automatically every day at 00:00 UTC. The season is detected from ESPN, so when
+no game of the upcoming season has been played yet, the most recently completed season (including
+playoff games) is shown instead of an empty record.
 
 ## ❓ FAQ
 

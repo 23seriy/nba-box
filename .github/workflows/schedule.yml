@@ -1,7 +1,7 @@
 name: Update NBA Gist
 on:
   schedule:
-    - cron: "0 */6 * * *" # Every 6 hours
+    - cron: "0 0 * * *" # Every day at 00:00 UTC
   workflow_dispatch:
 jobs:
   update-gist:
