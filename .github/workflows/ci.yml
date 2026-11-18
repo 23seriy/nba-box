@@ -11,8 +11,8 @@ jobs:
       # Required to push the rebuilt dist/ back to main after a merge.
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "26"
           # Latest Node 26 release, so setup-node does not need a pinned patch version.
