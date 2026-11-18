@@ -215,9 +215,12 @@ function formatGameResult(game) {
   const result = game.teamScore > game.oppScore ? "W" : "L";
   const icon = result === "W" ? "✅" : "❌";
   const prefix = game.isHome ? "vs" : "@";
+  // Games are dated in US Eastern time so the label does not depend on the
+  // timezone of the machine running the job (CI runs in UTC).
   const dateStr = new Date(game.date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "America/New_York",
   });
 
   return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
@@ -296,6 +299,23 @@ function getDemoData(teamAbbr) {
 }
 
 const isDemo = process.argv.includes("--demo");
+const updateReadme = process.argv.includes("--update-readme");
+
+const PREVIEW_START = "<!-- preview:start -->";
+const PREVIEW_END = "<!-- preview:end -->";
+
+// Replaces the README block between the preview markers so the documented output
+// tracks the published gist.
+function replacePreview(markdown, content) {
+  const start = markdown.indexOf(PREVIEW_START);
+  const end = markdown.indexOf(PREVIEW_END);
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`README is missing ${PREVIEW_START} / ${PREVIEW_END} markers.`);
+  }
+  const head = markdown.slice(0, start + PREVIEW_START.length);
+  const tail = markdown.slice(end);
+  return `${head}\n\n${content.trim()}\n\n${tail}`;
+}
 
 function validateConfig(env = process.env, { demo = false } = {}) {
   const config = {
@@ -415,11 +435,28 @@ async function main(env = process.env) {
   console.log(content);
   console.log("--- End Preview ---\n");
 
+  if (updateReadme && !isDemo) {
+    await writeReadme(content);
+  }
+
   if (isDemo) {
     console.log("⚠️  Skipping gist update (demo mode)");
   } else {
     await updateGist(config, team, content, emoji);
   }
+}
+
+async function writeReadme(content) {
+  // Resolved from the caller's directory: inside the bundled action __dirname is dist/.
+  const readmePath = require("node:path").join(process.env.GITHUB_WORKSPACE || process.cwd(), "README.md");
+  const markdown = await require("node:fs/promises").readFile(readmePath, "utf8");
+  const updated = replacePreview(markdown, content);
+  if (updated === markdown) {
+    console.log("README preview is already up to date.");
+    return;
+  }
+  await require("node:fs/promises").writeFile(readmePath, updated);
+  console.log("README preview updated.");
 }
 
 async function updateGist(config, team, content, emoji) {
@@ -465,4 +502,7 @@ module.exports = {
   validateConfig,
   renderGist,
   scheduleSeasons,
+  replacePreview,
+  PREVIEW_START,
+  PREVIEW_END,
 };

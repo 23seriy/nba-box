@@ -12,6 +12,9 @@ const {
   validateConfig,
   renderGist,
   scheduleSeasons,
+  replacePreview,
+  PREVIEW_START,
+  PREVIEW_END,
 } = require("../index.js");
 
 function competition({ opponent = "BOS", isHome = true, teamScore = 110, oppScore = 100, completed = true } = {}) {
@@ -37,8 +40,12 @@ function competition({ opponent = "BOS", isHome = true, teamScore = 110, oppScor
   };
 }
 
-function localDate(iso) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function easternDate(iso) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  });
 }
 
 test("espnSeason numbers the season by the year it ends", () => {
@@ -115,16 +122,33 @@ test("parseGame tolerates string scores and skips unusable events", () => {
 
 test("formatGameResult renders wins, losses and home/away", () => {
   const win = formatGameResult({ date: "2026-11-01T23:00Z", isHome: true, opponent: "BOS", teamScore: 110, oppScore: 100 });
-  assert.equal(win, `✅ W 110-100 vs BOS (${localDate("2026-11-01T23:00Z")})`);
+  assert.equal(win, `✅ W 110-100 vs BOS (${easternDate("2026-11-01T23:00Z")})`);
 
   const loss = formatGameResult({ date: "2026-10-21T02:00Z", isHome: false, opponent: "GSW", teamScore: 98, oppScore: 108 });
-  assert.equal(loss, `❌ L  98-108 @ GSW (${localDate("2026-10-21T02:00Z")})`);
+  assert.equal(loss, `❌ L  98-108 @ GSW (${easternDate("2026-10-21T02:00Z")})`);
 });
 
-test("formatGameResult dates a late tip-off on the local day", () => {
+test("formatGameResult dates a late tip-off in US Eastern time", () => {
   // 02:00Z on Oct 22 is the evening of Oct 21 in the US; formatting in UTC would say Oct 22.
   const game = { date: "2026-10-22T02:00Z", isHome: true, opponent: "BOS", teamScore: 110, oppScore: 100 };
-  assert.ok(formatGameResult(game).includes(`(${localDate(game.date)})`));
+  assert.ok(formatGameResult(game).includes("(Oct 21)"));
+  assert.ok(!formatGameResult(game).includes("(Oct 22)"));
+});
+
+test("formatGameResult does not depend on the runtime timezone", () => {
+  const game = { date: "2026-11-12T01:00Z", isHome: false, opponent: "MIL", teamScore: 123, oppScore: 112 };
+  const original = process.env.TZ;
+  try {
+    process.env.TZ = "UTC";
+    const utc = formatGameResult(game);
+    process.env.TZ = "Asia/Tokyo";
+    const tokyo = formatGameResult(game);
+    assert.equal(utc, tokyo);
+    assert.ok(utc.includes("(Nov 11)"));
+  } finally {
+    if (original === undefined) delete process.env.TZ;
+    else process.env.TZ = original;
+  }
 });
 
 test("formatNextGame shows the tip-off in Eastern time", () => {
@@ -246,4 +270,32 @@ test("renderGist handles an unplayed season and shows the next game", () => {
   assert.ok(!content.includes(" Conference · "));
   assert.ok(content.includes("📅 No completed games in this season yet"));
   assert.ok(content.includes("🏟️ Next: vs BOS"));
+});
+
+test("replacePreview swaps only the marked block", () => {
+  const markdown = [
+    "# Title",
+    "",
+    "before",
+    PREVIEW_START,
+    "old output",
+    PREVIEW_END,
+    "after",
+  ].join("\n");
+
+  const updated = replacePreview(markdown, "📊 new output\n");
+  assert.ok(updated.startsWith("# Title\n\nbefore\n"));
+  assert.ok(updated.includes(`${PREVIEW_START}\n\n📊 new output\n\n${PREVIEW_END}`));
+  assert.ok(updated.endsWith("\nafter"));
+  assert.ok(!updated.includes("old output"));
+});
+
+test("replacePreview is stable when the content has not changed", () => {
+  const markdown = `${PREVIEW_START}\n\nbody\n\n${PREVIEW_END}`;
+  assert.equal(replacePreview(markdown, "body"), markdown);
+});
+
+test("replacePreview fails loudly without markers", () => {
+  assert.throws(() => replacePreview("no markers here", "body"), /missing <!-- preview:start -->/);
+  assert.throws(() => replacePreview(`${PREVIEW_START}\nbody`, "body"), /missing/);
 });
