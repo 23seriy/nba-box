@@ -52,12 +52,20 @@ const ESPN_ABBR = {
   GSW: "GS", NOP: "NO", NYK: "NY", SAS: "SA", UTA: "UTAH", WAS: "WSH",
 };
 
+// ESPN's NBA "season" is the year the season ends (2027 = the 2026-27 season).
+// Read the year in US Eastern time, where NBA games are dated.
+function espnSeason(date = new Date()) {
+  return Number(
+    new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: "America/New_York" }).format(date)
+  );
+}
+
 async function fetchTeam(teamAbbr) {
   try {
     const upper = teamAbbr.toUpperCase();
     const espnId = ESPN_TEAM_IDS[upper];
     if (!espnId) {
-      console.error(`Unknown NBA team: ${upper}`);
+      console.error(`Unknown NBA team: ${upper}. Check the NBA_TEAM abbreviation.`);
       return null;
     }
     const { data } = await axios.get(`${ESPN_BASE}/teams/${espnId}`, { headers: ESPN_HEADERS });
@@ -71,6 +79,7 @@ async function fetchTeam(teamAbbr) {
       full_name: team.displayName,
       conference: "",
       division: "",
+      standingSummary: team.standingSummary || "",
     };
   } catch (error) {
     console.error(`Failed to fetch NBA team: ${error.message}`);
@@ -78,13 +87,11 @@ async function fetchTeam(teamAbbr) {
   }
 }
 
-async function fetchRecentGames(teamAbbr, count = 5) {
+async function fetchSeasonSchedule(teamAbbr, season) {
   try {
     const upper = teamAbbr.toUpperCase();
     const espnId = ESPN_TEAM_IDS[upper];
     const espnAbbr = ESPN_ABBR[upper] || upper;
-    const now = new Date();
-    const season = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
 
     const [regData, postData] = await Promise.all([
       axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${season}&seasontype=2`, { headers: ESPN_HEADERS }),
@@ -97,11 +104,12 @@ async function fetchRecentGames(teamAbbr, count = 5) {
     ];
 
     return events
-      .filter((e) => e.competitions?.[0]?.status?.type?.completed)
+      .filter((e) => e.competitions?.[0])
       .map((e) => {
         const comp = e.competitions[0];
-        const teamComp = comp.competitors.find((c) => c.team?.abbreviation?.toUpperCase() === espnAbbr.toUpperCase());
-        const oppComp = comp.competitors.find((c) => c.team?.abbreviation?.toUpperCase() !== espnAbbr.toUpperCase());
+        const completed = Boolean(comp.status?.type?.completed);
+        const teamComp = comp.competitors?.find((c) => c.team?.abbreviation?.toUpperCase() === espnAbbr);
+        const oppComp = comp.competitors?.find((c) => c.team?.abbreviation?.toUpperCase() !== espnAbbr);
         if (!teamComp || !oppComp) return null;
         const teamScore = teamComp.score?.value ?? parseFloat(teamComp.score) ?? 0;
         const oppScore = oppComp.score?.value ?? parseFloat(oppComp.score) ?? 0;
@@ -109,34 +117,25 @@ async function fetchRecentGames(teamAbbr, count = 5) {
         return {
           date: e.date,
           postseason: e.gameType === 3,
-          status: "Final",
-          home_team: {
-            id: isHome ? espnId : 0,
-            abbreviation: isHome ? upper : oppComp.team.abbreviation,
-          },
-          visitor_team: {
-            id: isHome ? 0 : espnId,
-            abbreviation: isHome ? oppComp.team.abbreviation : upper,
-          },
-          home_team_score: isHome ? teamScore : oppScore,
-          visitor_team_score: isHome ? oppScore : teamScore,
+          completed,
+          status: comp.status?.type?.detail || "Scheduled",
+          opponent: oppComp.team.abbreviation,
+          isHome,
+          teamScore,
+          oppScore,
         };
       })
       .filter(Boolean)
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, count);
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
   } catch (error) {
     console.error(`Failed to fetch NBA games: ${error.message}`);
     return [];
   }
 }
 
-async function fetchSeasonRecord(teamAbbr) {
+async function fetchSeasonRecord(teamAbbr, season) {
   try {
-    const upper = teamAbbr.toUpperCase();
-    const espnAbbr = ESPN_ABBR[upper] || upper;
-    const now = new Date();
-    const season = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
+    const espnAbbr = ESPN_ABBR[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
     const { data } = await axios.get(
       `${ESPN_BASE_V2}/standings?level=3&season=${season}&seasontype=2`,
       { headers: ESPN_HEADERS }
@@ -144,41 +143,68 @@ async function fetchSeasonRecord(teamAbbr) {
     for (const conf of (data.children || [])) {
       for (const div of (conf.children || [])) {
         const entry = (div.standings?.entries || []).find(
-          (e) => e.team?.abbreviation?.toUpperCase() === espnAbbr.toUpperCase()
+          (e) => e.team?.abbreviation?.toUpperCase() === espnAbbr
         );
         if (entry) {
           const stats = Object.fromEntries((entry.stats || []).map((s) => [s.name, s.value]));
           return {
             wins: stats.wins || 0,
             losses: stats.losses || 0,
-            season,
             conference: conf.name?.replace(" Conference", "") || "",
             division: div.name?.replace(" Division", "") || "",
           };
         }
       }
     }
-    return { wins: 0, losses: 0, season, conference: "", division: "" };
+    return null;
   } catch (error) {
     console.error(`Failed to fetch NBA standings: ${error.message}`);
-    return { wins: 0, losses: 0, season: new Date().getFullYear() - 1, conference: "", division: "" };
+    return null;
   }
 }
 
-function formatGameResult(game, teamId) {
-  const isHome = game.home_team.id === teamId;
-  const teamScore = isHome ? game.home_team_score : game.visitor_team_score;
-  const oppScore = isHome ? game.visitor_team_score : game.home_team_score;
-  const opponent = isHome ? game.visitor_team : game.home_team;
-  const won = teamScore > oppScore;
-  const prefix = isHome ? "vs" : "@";
+// Picks the season being shown: the current ESPN season, or the most recently
+// completed one during the offseason, when no game of the current season has been played.
+async function fetchTeamSeason(teamAbbr) {
+  const currentSeason = espnSeason();
+  let record = await fetchSeasonRecord(teamAbbr, currentSeason);
+  let games = await fetchSeasonSchedule(teamAbbr, currentSeason);
+
+  if (games.some((g) => g.completed)) {
+    return { season: currentSeason, record, games };
+  }
+
+  const previousSeason = currentSeason - 1;
+  console.log(`No games played in the ${currentSeason} season yet, showing ${previousSeason}.`);
+  record = (await fetchSeasonRecord(teamAbbr, previousSeason)) || record;
+  games = await fetchSeasonSchedule(teamAbbr, previousSeason);
+
+  return { season: previousSeason, record, games };
+}
+
+function formatGameResult(game) {
+  const won = game.teamScore > game.oppScore;
+  const prefix = game.isHome ? "vs" : "@";
   const result = won ? "W" : "L";
   const dateStr = new Date(game.date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
 
-  return `${result === "W" ? "✅" : "❌"} ${result} ${String(teamScore).padStart(3)}-${String(oppScore).padEnd(3)} ${prefix} ${opponent.abbreviation.padEnd(3)} (${dateStr})`;
+  return `${result === "W" ? "✅" : "❌"} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
+}
+
+function formatNextGame(game) {
+  const prefix = game.isHome ? "vs" : "@";
+  const when = new Date(game.date).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  });
+
+  return `🏟️ Next: ${prefix} ${game.opponent} — ${when} ET`;
 }
 
 function generateBarChart(percent, size) {
@@ -223,55 +249,65 @@ function getDemoData(teamAbbr) {
     d.setDate(d.getDate() - (i * 3 + 1));
     return {
       date: d.toISOString(),
-      status: "Final",
-      home_team: i % 2 === 0 ? team : { id: 99, abbreviation: opp },
-      visitor_team: i % 2 === 0 ? { id: 99, abbreviation: opp } : team,
-      home_team_score: i % 2 === 0 ? teamScore : oppScore,
-      visitor_team_score: i % 2 === 0 ? oppScore : teamScore,
+      completed: true,
+      isHome: i % 2 === 0,
+      opponent: opp,
+      teamScore,
+      oppScore,
     };
   });
   return {
     team,
     games,
-    record: { wins: 48, losses: 22, season: new Date().getFullYear() - 1 },
+    record: { wins: 48, losses: 22 },
+    season: espnSeason(),
   };
 }
 
 const isDemo = process.argv.includes("--demo");
 
-async function main() {
-  const teamAbbr = nbaTeamAbbr || "LAL";
-
-  if (!nbaTeamAbbr && !isDemo) {
-    console.error("NBA_TEAM environment variable is required (or use --demo)");
-    process.exit(1);
+function validateConfig() {
+  const missing = [];
+  if (!gistId) missing.push("GIST_ID");
+  if (!githubToken) missing.push("GH_TOKEN");
+  if (!nbaTeamAbbr) missing.push("NBA_TEAM");
+  // Demo previews render offline, so only a team is needed.
+  if (missing.length > 0 && !(isDemo && missing.length === 2 && !missing.includes("NBA_TEAM"))) {
+    throw new Error(
+      `Missing required environment variable(s): ${missing.join(", ")}. See sample.env for setup.`
+    );
   }
+  if (!ESPN_TEAM_IDS[nbaTeamAbbr.toUpperCase()]) {
+    throw new Error(`Unknown NBA_TEAM "${nbaTeamAbbr}". See the team table in README.md.`);
+  }
+  if (isDemo) {
+    console.log("Preview only (--demo): the gist will not be updated.");
+  }
+}
 
-  console.log(`🏀 ${isDemo ? "[DEMO] " : ""}Fetching data for ${teamAbbr.toUpperCase()}...`);
+async function main() {
+  validateConfig();
 
-  let team, recentGames, record;
+  const teamAbbr = nbaTeamAbbr.toUpperCase();
+
+  console.log(`🏀 ${isDemo ? "[DEMO] " : ""}Fetching data for ${teamAbbr}...`);
+
+  let team, games, record, season;
 
   if (isDemo) {
     const demo = getDemoData(teamAbbr);
-    team = demo.team;
-    recentGames = demo.games;
-    record = demo.record;
+    ({ team, games, record, season } = demo);
     console.log(`[DEMO] Using sample data for ${team.full_name}`);
   } else {
     team = await fetchTeam(teamAbbr);
     if (!team) {
-      console.error("Could not find team. Check NBA_TEAM abbreviation.");
-      process.exit(1);
+      throw new Error(`Could not find team "${teamAbbr}". Check the NBA_TEAM abbreviation.`);
     }
-    const standingsData = await fetchSeasonRecord(teamAbbr);
-    team.conference = standingsData.conference;
-    team.division = standingsData.division;
-    recentGames = await fetchRecentGames(teamAbbr, 5);
-    record = {
-      wins: standingsData.wins,
-      losses: standingsData.losses,
-      season: standingsData.season,
-    };
+    ({ games, record, season } = await fetchTeamSeason(teamAbbr));
+    if (record) {
+      team.conference = record.conference;
+      team.division = record.division;
+    }
   }
 
   const emoji = TEAM_EMOJI[team.abbreviation] || "🏀";
@@ -281,10 +317,12 @@ async function main() {
   console.log(`Found: ${team.full_name} (${team.abbreviation})`);
   console.log(`Logo: ${logoUrl}`);
 
+  const wins = record?.wins ?? 0;
+  const losses = record?.losses ?? 0;
   const winPct =
-    record.wins + record.losses > 0
-      ? ((record.wins / (record.wins + record.losses)) * 100).toFixed(1)
-      : "0.0";
+    wins + losses > 0 ? ((wins / (wins + losses)) * 100).toFixed(1) : "0.0";
+  const recentGames = games.filter((g) => g.completed).slice(-5).reverse();
+  const nextGame = games.find((g) => !g.completed && new Date(g.date) > new Date());
 
   const lines = [];
 
@@ -294,15 +332,18 @@ async function main() {
 
   // Header
   lines.push(`### ${emoji} ${team.full_name} (${team.abbreviation})`);
-  lines.push(`${team.conference} Conference · ${team.division} Division`);
+  if (team.conference && team.division) {
+    lines.push(`${team.conference} Conference · ${team.division} Division`);
+  }
   lines.push("");
 
   // Season record
-  if (record.wins + record.losses > 0) {
-    lines.push(
-      `📊 ${record.season}-${record.season + 1} Record: ${record.wins}W - ${record.losses}L (${winPct}%)`
-    );
+  if (wins + losses > 0) {
+    lines.push(`📊 ${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)`);
     lines.push(`   ${generateBarChart(parseFloat(winPct), 25)}`);
+    if (team.standingSummary) {
+      lines.push(`🏅 ${team.standingSummary}`);
+    }
     lines.push("");
   }
 
@@ -311,11 +352,16 @@ async function main() {
     lines.push("**📅 Recent Games:**");
     lines.push("```");
     for (const game of recentGames) {
-      lines.push(formatGameResult(game, team.id));
+      lines.push(formatGameResult(game));
     }
     lines.push("```");
   } else {
-    lines.push("📅 No recent games found");
+    lines.push("📅 No completed games in this season yet");
+  }
+
+  if (nextGame) {
+    lines.push("");
+    lines.push(formatNextGame(nextGame));
   }
 
   const content = lines.join("\n");
@@ -323,10 +369,10 @@ async function main() {
   console.log(content);
   console.log("--- End Preview ---\n");
 
-  if (gistId && githubToken && !isDemo) {
-    await updateGist(team, content, emoji);
+  if (isDemo) {
+    console.log("⚠️  Skipping gist update (demo mode)");
   } else {
-    console.log("⚠️  Skipping gist update (preview only)");
+    await updateGist(team, content, emoji);
   }
 }
 
@@ -335,8 +381,7 @@ async function updateGist(team, content, emoji) {
   try {
     gist = await octokit.gists.get({ gist_id: gistId });
   } catch (error) {
-    console.error(`Unable to get gist\n${error}`);
-    return;
+    throw new Error(`Unable to get gist: ${error.message}`, { cause: error });
   }
 
   try {
@@ -352,10 +397,15 @@ async function updateGist(team, content, emoji) {
     });
     console.log("✅ Gist updated successfully!");
   } catch (error) {
-    console.error(`Unable to update gist\n${error}`);
+    throw new Error(`Unable to update gist: ${error.message}`, { cause: error });
   }
 }
 
 (async () => {
-  await main();
+  try {
+    await main();
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
+    process.exit(1);
+  }
 })();

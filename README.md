@@ -31,6 +31,7 @@ West Conference · Pacific Division
 
 1. Create a new public GitHub Gist at [gist.github.com](https://gist.github.com/) — give it any filename/content.
 2. Create a GitHub token with the `gist` scope: [github.com/settings/tokens/new](https://github.com/settings/tokens/new)
+3. Run the workflow once (**Actions → Update NBA Gist → Run workflow**) to populate the gist right away.
 
 ### Project Setup
 
@@ -51,7 +52,26 @@ cp sample.env .env
 # Fill in your values in .env
 npm install
 npm start
+# Or preview the output offline, no GIST_ID/GH_TOKEN needed:
+NBA_TEAM=LAL node index.js --demo
 ```
+
+The gist is refreshed every 6 hours. The season is detected automatically from ESPN, so when no game
+of the upcoming season has been played yet, the most recently completed season (including playoff
+games) is shown instead of an empty record.
+
+## ❓ FAQ
+
+**The workflow fails with `Missing required environment variable(s)`** — one of `GIST_ID`, `GH_TOKEN`
+or `NBA_TEAM` is not set as a repository secret (Settings → Secrets and variables → Actions).
+
+**`Unable to get gist: Bad credentials`** — the `GH_TOKEN` is invalid or expired; create a new token
+with the `gist` scope.
+
+**`Unknown NBA_TEAM "XYZ"`** — use one of the abbreviations in the table below.
+
+**The gist still shows an old team after changing `NBA_TEAM`** — the scheduled run renames the gist
+file to the new team; the pinned gist itself is reused, so no action is needed.
 
 ## <picture><source media="(prefers-color-scheme: dark)" srcset="https://a.espncdn.com/i/teamlogos/leagues/500-dark/nba.png"><img src="https://a.espncdn.com/i/teamlogos/leagues/500/nba.png" alt="NBA logo" height="28"></picture> NBA Team Abbreviations
 
