@@ -158,6 +158,17 @@ test("validateConfig rejects unknown teams", () => {
   );
 });
 
+test("validateConfig rejects the placeholder values from .env.example", () => {
+  assert.throws(
+    () => validateConfig({ GIST_ID: "your_gist_id_here", GH_TOKEN: "your_github_token_here", NBA_TEAM: "LAL" }),
+    /placeholder value for GIST_ID, GH_TOKEN/
+  );
+  assert.throws(
+    () => validateConfig({ GIST_ID: "g", GH_TOKEN: "your_github_token_here", NBA_TEAM: "LAL" }),
+    /placeholder value for GH_TOKEN/
+  );
+});
+
 test("getDemoData builds five completed games for the requested team", () => {
   const demo = getDemoData("gsw");
   assert.equal(demo.team.full_name, "Golden State Warriors");

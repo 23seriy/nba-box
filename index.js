@@ -16,6 +16,12 @@ const ESPN_HEADERS = {
 const octokit = new Octokit({ auth: `token ${githubToken}` });
 const DEFAULT_TEAM = "LAL";
 
+const PLACEHOLDER_VALUES = {
+  gistId: ["your_gist_id_here"],
+  githubToken: ["your_github_token_here"],
+};
+const ENV_NAMES = { gistId: "GIST_ID", githubToken: "GH_TOKEN" };
+
 // NBA team logos as ASCII art abbreviations with emoji
 const TEAM_EMOJI = {
   ATL: "🦅", BOS: "☘️", BKN: "🏙️", CHA: "🐝", CHI: "🐂",
@@ -84,6 +90,7 @@ async function fetchTeam(teamAbbr) {
       standingSummary: team.standingSummary || "",
     };
   } catch (error) {
+    // Returning null aborts the run; config problems are reported by validateConfig.
     console.error(`Failed to fetch NBA team: ${error.message}`);
     return null;
   }
@@ -286,11 +293,19 @@ function validateConfig(env = process.env, { demo = false } = {}) {
   // Demo previews render offline, so only a team is needed.
   if (missing.length > 0 && !(demo && missing.length === 2 && !missing.includes("NBA_TEAM"))) {
     throw new Error(
-      `Missing required environment variable(s): ${missing.join(", ")}. See sample.env for setup.`
+      `Missing required environment variable(s): ${missing.join(", ")}. See .env.example for setup.`
     );
   }
   if (config.nbaTeam && !ESPN_TEAM_IDS[config.nbaTeam.toUpperCase()]) {
     throw new Error(`Unknown NBA_TEAM "${config.nbaTeam}". See the team table in README.md.`);
+  }
+  const placeholders = Object.entries(PLACEHOLDER_VALUES)
+    .filter(([key]) => config[key] && PLACEHOLDER_VALUES[key].includes(config[key]));
+  if (placeholders.length > 0) {
+    throw new Error(
+      `Still using the placeholder value for ${placeholders.map(([key]) => ENV_NAMES[key]).join(", ")}. ` +
+        "Copy .env.example to .env and fill in your own values."
+    );
   }
   return config;
 }
