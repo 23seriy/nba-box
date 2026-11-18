@@ -60,6 +60,11 @@ function espnSeason(date = new Date()) {
   );
 }
 
+function formatStanding(summary) {
+  // ESPN reports play-in teams as e.g. "10th in Eastern Conference Division".
+  return summary.replace(/ Conference Division$/, " Conference");
+}
+
 async function fetchTeam(teamAbbr) {
   try {
     const upper = teamAbbr.toUpperCase();
@@ -342,7 +347,7 @@ async function main() {
     lines.push(`📊 ${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)`);
     lines.push(`   ${generateBarChart(parseFloat(winPct), 25)}`);
     if (team.standingSummary) {
-      lines.push(`🏅 ${team.standingSummary}`);
+      lines.push(`🏅 ${formatStanding(team.standingSummary)}`);
     }
     lines.push("");
   }
