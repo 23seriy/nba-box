@@ -11,6 +11,7 @@ const {
   getDemoData,
   validateConfig,
   renderGist,
+  scheduleSeasons,
 } = require("../index.js");
 
 function competition({ opponent = "BOS", isHome = true, teamScore = 110, oppScore = 100, completed = true } = {}) {
@@ -40,17 +41,30 @@ function localDate(iso) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-test("espnSeason falls back to the calendar year in US Eastern time", () => {
-  assert.equal(espnSeason(new Date("2026-11-01T12:00:00Z")), 2026);
-  assert.equal(espnSeason(new Date("2026-12-31T23:59:59Z")), 2026);
+test("espnSeason numbers the season by the year it ends", () => {
+  // 2026-27 is season 2027; the summer after it is still season 2027.
+  assert.equal(espnSeason(new Date("2026-11-01T12:00:00Z")), 2027);
+  assert.equal(espnSeason(new Date("2026-12-31T23:59:59Z")), 2027);
   assert.equal(espnSeason(new Date("2027-03-15T12:00:00Z")), 2027);
   assert.equal(espnSeason(new Date("2027-06-20T12:00:00Z")), 2027);
+  // Before opening night the previous season is still the current one.
+  assert.equal(espnSeason(new Date("2026-08-15T12:00:00Z")), 2026);
+  assert.equal(espnSeason(new Date("2026-09-30T12:00:00Z")), 2026);
+  assert.equal(espnSeason(new Date("2026-10-01T12:00:00Z")), 2027);
 });
 
-test("espnSeason switches year in Eastern time, not UTC", () => {
-  // 23:59 ET Dec 31 is still the old year although UTC has already ticked over.
-  assert.equal(espnSeason(new Date("2027-01-01T04:59:00Z")), 2026);
-  assert.equal(espnSeason(new Date("2027-01-01T05:30:00Z")), 2027);
+test("scheduleSeasons numbers each schedule query the way ESPN expects", () => {
+  // Regular season is numbered by the ending year, the postseason by the starting year.
+  assert.deepEqual(scheduleSeasons(2027), { regularSeason: 2027, postseason: 2026 });
+  assert.deepEqual(scheduleSeasons(2026), { regularSeason: 2026, postseason: 2025 });
+});
+
+test("espnSeason reads the Eastern-time date, not UTC", () => {
+  // Both instants are Dec 31 in ET even though UTC has already ticked over.
+  assert.equal(espnSeason(new Date("2027-01-01T04:59:00Z")), 2027);
+  // 23:30 ET on Sep 30 is still the offseason season, 00:30 ET on Oct 1 is the new one.
+  assert.equal(espnSeason(new Date("2026-10-01T03:30:00Z")), 2026);
+  assert.equal(espnSeason(new Date("2026-10-01T04:30:00Z")), 2027);
 });
 
 test("formatStanding drops ESPN's bogus trailing 'Division'", () => {
