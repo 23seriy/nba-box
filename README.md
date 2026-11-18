@@ -52,6 +52,8 @@ During the season, a 🏟️ next-game line with the tip-off time in ET is appen
 
 ### Run Locally
 
+Requires Node.js 26+.
+
 ```bash
 cp sample.env .env
 # Fill in your values in .env, then delete .env before committing

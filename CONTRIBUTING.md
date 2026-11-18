@@ -18,7 +18,7 @@ Thanks for your interest in contributing! Here's how you can help.
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 26+ (latest 26.x)
 - npm
 
 ### Running Locally
