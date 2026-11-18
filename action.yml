@@ -4,5 +4,7 @@ branding:
   icon: "award"
   color: "orange"
 runs:
-  using: "node20"
+  # node24 is the newest JavaScript action runtime GitHub Actions supports; the bundled
+  # runner Node is already 24 even though requests for node20 still work.
+  using: "node24"
   main: "dist/index.js"

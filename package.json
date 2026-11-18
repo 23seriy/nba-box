@@ -4,6 +4,9 @@
   "description": "🏀 Update a pinned gist to contain your favourite NBA team's stats and logo",
   "author": "solshanetski",
   "license": "MIT",
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "start": "node index.js",
     "lint": "eslint .",
