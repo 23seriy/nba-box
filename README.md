@@ -59,8 +59,8 @@ During the season, a 🏟️ next-game line with the tip-off time in ET is appen
 Requires Node.js 26+.
 
 ```bash
-cp sample.env .env
-# Fill in your values in .env, then delete .env before committing
+cp .env.example .env
+# Fill in your values (.env is git-ignored, never commit it)
 npm install
 npm start
 # Or preview the output offline, no GIST_ID/GH_TOKEN needed:
@@ -79,8 +79,14 @@ game of the new season has been played, the most recently completed season is sh
 **The workflow fails with `Missing required environment variable(s)`** — one of `GIST_ID`, `GH_TOKEN`
 or `NBA_TEAM` is not set as a repository secret (Settings → Secrets and variables → Actions).
 
+**`Still using the placeholder value for GIST_ID`** — the copied `.env.example` was not filled in. Replace
+the placeholder values in `.env`, or set your own.
+
 **`Unable to get gist: Bad credentials`** — the `GH_TOKEN` is invalid or expired; create a new token
 with the `gist` scope.
+
+**The gist does not update after editing the workflow** — scheduled workflows only reload their
+definition after an event triggers the workflow; run it once from **Actions → Update NBA Gist → Run workflow**.
 
 **`Unknown NBA_TEAM "XYZ"`** — use one of the abbreviations in the table below.
 

@@ -24,8 +24,8 @@ Thanks for your interest in contributing! Here's how you can help.
 ### Running Locally
 
 ```bash
-cp sample.env .env
-# Fill in your values
+cp .env.example .env
+# Fill in your values (.env is git-ignored)
 npm install
 npm start
 ```
