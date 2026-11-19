@@ -7,6 +7,8 @@ const {
   parseGame,
   formatGameResult,
   formatNextGame,
+  formatLiveGame,
+  parseLiveGame,
   generateBarChart,
   getDemoData,
   validateConfig,
@@ -298,4 +300,100 @@ test("replacePreview is stable when the content has not changed", () => {
 test("replacePreview fails loudly without markers", () => {
   assert.throws(() => replacePreview("no markers here", "body"), /missing <!-- preview:start -->/);
   assert.throws(() => replacePreview(`${PREVIEW_START}\nbody`, "body"), /missing/);
+});
+
+function scoreboard(state, { teamScore = "6", oppScore = "11", detail = "8:49 - 1st Quarter" } = {}) {
+  return {
+    events: [
+      {
+        date: "2026-11-19T03:00Z",
+        competitions: [
+          {
+            status: {
+              displayClock: "8:49",
+              type: { state, completed: state === "post", detail },
+            },
+            competitors: [
+              { team: { abbreviation: "LAL" }, homeAway: "home", score: teamScore },
+              { team: { abbreviation: "UTAH" }, homeAway: "away", score: oppScore },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+test("parseLiveGame reads an in-progress game with its live score", () => {
+  assert.deepEqual(parseLiveGame(scoreboard("in"), "LAL"), {
+    date: "2026-11-19T03:00Z",
+    detail: "8:49 - 1st Quarter",
+    opponent: "UTAH",
+    isHome: true,
+    teamScore: 6,
+    oppScore: 11,
+  });
+});
+
+test("parseLiveGame matches the away team and ESPN abbreviations", () => {
+  const data = scoreboard("in");
+  assert.equal(parseLiveGame(data, "UTAH").isHome, false);
+  assert.equal(parseLiveGame(scoreboard("in", { teamScore: "5", oppScore: "4" }), "GS"), null);
+});
+
+test("parseLiveGame ignores games that are not in progress", () => {
+  // Scores only stream while a game is live; finished and scheduled games are skipped.
+  assert.equal(parseLiveGame(scoreboard("post"), "LAL"), null);
+  assert.equal(parseLiveGame(scoreboard("pre"), "LAL"), null);
+  assert.equal(parseLiveGame({}, "LAL"), null);
+  assert.equal(parseLiveGame(null, "LAL"), null);
+});
+
+test("formatLiveGame shows the score and game clock", () => {
+  assert.equal(
+    formatLiveGame({ opponent: "UTAH", isHome: true, teamScore: 6, oppScore: 11, detail: "8:49 - 1st Quarter" }),
+    "🔴 Live: vs UTAH — 6-11 (8:49 - 1st Quarter)"
+  );
+  assert.ok(
+    formatLiveGame({ opponent: "BOS", isHome: false, teamScore: 20, oppScore: 18, detail: "2:10 - 2nd" }).startsWith(
+      "🔴 Live: @ BOS — 20-18"
+    )
+  );
+});
+
+test("renderGist shows the live game above the next game", () => {
+  const future = new Date(Date.now() + 86_400_000).toISOString();
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [
+      {
+        date: "2026-11-01T23:00Z",
+        completed: true,
+        isHome: true,
+        opponent: "BOS",
+        teamScore: 110,
+        oppScore: 100,
+      },
+      { date: future, completed: false, isHome: false, opponent: "SAC", teamScore: 0, oppScore: 0 },
+    ],
+    record: { wins: 13, losses: 2 },
+    season: 2027,
+    liveGame: { opponent: "UTAH", isHome: true, teamScore: 6, oppScore: 11, detail: "8:49 - 1st Quarter" },
+  });
+
+  const liveIndex = content.indexOf("🔴 Live: vs UTAH — 6-11");
+  const nextIndex = content.indexOf("🏟️ Next: @ SAC");
+  assert.ok(liveIndex > -1 && nextIndex > -1);
+  assert.ok(liveIndex < nextIndex);
+  assert.equal(content.match(/🔴 Live/g).length, 1);
+});
+
+test("renderGist omits the live line when no game is in progress", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [],
+    record: null,
+    season: 2027,
+  });
+  assert.ok(!content.includes("🔴 Live"));
 });

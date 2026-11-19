@@ -34,6 +34,8 @@ Western Conference · Pacific Division
 
 <!-- preview:end -->
 
+While a game is in progress the gist also shows a 🔴 Live line with the score and game clock.
+
 **[Live example](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — a real gist, refreshed every day. This preview is updated from it automatically.
 
 ## Setup
@@ -73,7 +75,7 @@ NBA_TEAM=LAL node index.js --demo
 NBA_TEAM=LAL node index.js --update-readme
 ```
 
-The gist is refreshed automatically every day at 00:00 UTC. The season is detected from ESPN, so when
+The gist is refreshed automatically every day just after 00:00 UTC. The season is detected from ESPN, so when
 no game of the upcoming season has been played yet, the most recently completed season (including
 playoff games) is shown instead of an empty record.
 
@@ -93,6 +95,9 @@ with the `gist` scope.
 
 **The gist does not update after editing the workflow** — scheduled workflows only reload their
 definition after an event triggers the workflow; run it once from **Actions → Update NBA Gist → Run workflow**.
+
+**The daily refresh did not run** — GitHub can delay or skip scheduled runs (and disables them after
+60 days without repository activity). Trigger **Actions → Update NBA Gist → Run workflow** to refresh on demand.
 
 **`Unknown NBA_TEAM "XYZ"`** — use one of the abbreviations in the table below.
 
