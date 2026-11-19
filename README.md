@@ -17,17 +17,17 @@
 ### 👑 Los Angeles Lakers (LAL)
 Western Conference · Pacific Division
 
-📊 2026-2027 Record: 13W - 2L (86.7%)
-   █████████████████████▋░░░
+📊 2026-2027 Record: 13W - 3L (81.3%)
+   ████████████████████▎░░░░
 🏅 1st in Pacific Division
 
 **📅 Recent Games:**
 ```
+❌ L  97-109 vs UTAH (Nov 18)
 ✅ W 118-114 vs CHA (Nov 17)
 ✅ W 131-123 @ PHX (Nov 15)
 ✅ W 123-112 @ MIL (Nov 11)
 ✅ W 124-114 @ ATL (Nov 9)
-✅ W 121-116 @ DET (Nov 8)
 ```
 
 🏟️ Next: vs SAC — Nov 20, 10:00 PM ET
