@@ -30,7 +30,7 @@ Western Conference · Pacific Division
 ✅ W 121-116 @ DET (Nov 8)
 ```
 
-🏟️ Next: vs UTAH — Nov 18, 10:00 PM ET
+🏟️ Next: vs SAC — Nov 20, 10:00 PM ET
 
 <!-- preview:end -->
 
