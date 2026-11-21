@@ -74,9 +74,10 @@ test("espnSeason numbers the season by the year it ends", () => {
 });
 
 test("scheduleSeasons numbers each schedule query the way ESPN expects", () => {
-  // Regular season is numbered by the ending year, the postseason by the starting year.
-  assert.deepEqual(scheduleSeasons(2027), { regularSeason: 2027, postseason: 2026 });
-  assert.deepEqual(scheduleSeasons(2026), { regularSeason: 2026, postseason: 2025 });
+  // Preseason and regular season are numbered by the ending year, the postseason
+  // by the starting year.
+  assert.deepEqual(scheduleSeasons(2027), { preseason: 2027, regularSeason: 2027, postseason: 2026 });
+  assert.deepEqual(scheduleSeasons(2026), { preseason: 2026, regularSeason: 2026, postseason: 2025 });
 });
 
 test("espnSeason reads the Eastern-time date, not UTC", () => {
@@ -96,6 +97,7 @@ test("formatStanding drops ESPN's bogus trailing 'Division'", () => {
 test("parseGame maps a home win", () => {
   assert.deepEqual(parseGame(competition(), "LAL"), {
     date: "2026-11-01T23:00Z",
+    preseason: false,
     postseason: false,
     completed: true,
     opponent: "BOS",
@@ -633,25 +635,39 @@ test("parseTeam maps the team endpoint", () => {
   assert.equal(parseTeam(null, "LAL"), null);
 });
 
-test("parseSchedule merges regular season and postseason chronologically", () => {
-  const event = (date, completed) => competition({ completed }) && { ...competition({ completed }), date };
-  const regular = { events: [event("2026-11-15T21:00Z", true), event("2026-11-01T23:00Z", true)] };
-  const postseason = { events: [event("2027-04-20T02:00Z", true)] };
+test("parseSchedule merges preseason, regular season and postseason chronologically", () => {
+  const event = (date, completed) => ({ ...competition({ completed }), date });
+  const payloads = {
+    preseason: { events: [event("2026-10-08T02:00Z", true)] },
+    regularSeason: { events: [event("2026-11-15T21:00Z", true), event("2026-11-01T23:00Z", true)] },
+    postseason: { events: [event("2027-04-20T02:00Z", true)] },
+  };
 
-  const games = parseSchedule(regular, postseason, "LAL");
+  const games = parseSchedule(payloads, "LAL");
   assert.deepEqual(games.map((g) => g.date), [
+    "2026-10-08T02:00Z",
     "2026-11-01T23:00Z",
     "2026-11-15T21:00Z",
     "2027-04-20T02:00Z",
   ]);
-  assert.equal(games[2].postseason, true);
-  assert.equal(games[0].postseason, false);
+  assert.equal(games[0].preseason, true);
+  assert.equal(games[1].preseason, false);
+  assert.equal(games[3].postseason, true);
+  assert.equal(games[3].preseason, false);
 });
 
 test("parseSchedule tolerates missing payloads and malformed events", () => {
-  assert.deepEqual(parseSchedule(undefined, undefined, "LAL"), []);
-  assert.deepEqual(parseSchedule({}, {}, "LAL"), []);
-  assert.deepEqual(parseSchedule({ events: [{}] }, {}, "LAL"), []);
+  assert.deepEqual(parseSchedule(undefined, "LAL"), []);
+  assert.deepEqual(parseSchedule({}, "LAL"), []);
+  assert.deepEqual(parseSchedule({ regularSeason: { events: [{}] } }, "LAL"), []);
+});
+
+test("preseason results and fixtures are labelled", () => {
+  const game = { date: "2026-10-08T02:00Z", isHome: true, opponent: "GS", teamScore: 112, oppScore: 108, preseason: true };
+  assert.ok(formatGameResult(game).includes("(Oct 7 · PS)"));
+  assert.ok(formatNextGame({ ...game, completed: false }).endsWith("ET · PS"));
+  // Regular-season games stay unlabelled.
+  assert.ok(!formatGameResult({ ...game, preseason: false }).includes("PS"));
 });
 
 // --- season selection ------------------------------------------------------
@@ -700,6 +716,21 @@ test("fetchTeamSeason falls back to the previous season before opening night", a
   assert.equal(result.record.wins, 53);
   assert.equal(result.games[0].date, "2026-05-01T23:00Z");
   assert.deepEqual(calls.map(([, season]) => season), [current, current, current - 1, current - 1].map((s, i) => (i < 2 ? current : current - 1)));
+});
+
+test("fetchTeamSeason shows the current season once preseason games are played", async () => {
+  const current = espnSeason();
+  const deps = {
+    fetchStandings: async () => ({ wins: 0, losses: 0 }),
+    fetchSeasonSchedule: async () => [
+      { date: "2026-10-08T02:00Z", completed: true, preseason: true },
+      { date: "2026-10-20T23:00Z", completed: false, preseason: false },
+    ],
+  };
+
+  const result = await fetchTeamSeason("LAL", deps);
+  assert.equal(result.season, current);
+  assert.equal(result.games.filter((g) => g.preseason).length, 1);
 });
 
 test("fetchTeamSeason keeps the current record when the previous season has none", async () => {
@@ -759,4 +790,48 @@ test("writeReadme surfaces a README without preview markers", async () => {
   await fs.writeFile(readme, "# Title only\n");
   await assert.rejects(() => writeReadme("body", readme), /missing <!-- preview:start -->/);
   await fs.rm(dir, { recursive: true, force: true });
+});
+
+test("renderGist tallies preseason games until the regular season starts", () => {
+  const ps = (date, teamScore, oppScore) => ({
+    date,
+    completed: true,
+    preseason: true,
+    isHome: true,
+    opponent: "DEN",
+    teamScore,
+    oppScore,
+  });
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [ps("2026-10-08T02:00Z", 114, 110), ps("2026-10-13T02:00Z", 89, 101), ps("2026-10-16T02:00Z", 106, 121)],
+    record: { wins: 0, losses: 0 },
+    season: 2027,
+  });
+
+  assert.ok(content.includes("📊 Preseason: 1W - 2L"));
+  assert.ok(content.includes("(Oct 7 · PS)"));
+  assert.ok(!content.includes("Record:"));
+});
+
+test("renderGist ignores the preseason tally once the regular season has a record", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [{ date: "2026-10-08T02:00Z", completed: true, preseason: true, isHome: true, opponent: "DEN", teamScore: 114, oppScore: 110 }],
+    record: { wins: 14, losses: 3 },
+    season: 2027,
+  });
+  assert.ok(content.includes("Record: 14W - 3L"));
+  assert.ok(!content.includes("Preseason:"));
+});
+
+test("renderGist shows no preseason line when no preseason game has been played", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [{ date: "2026-10-20T23:00Z", completed: false, preseason: true, isHome: true, opponent: "DEN", teamScore: 0, oppScore: 0 }],
+    record: { wins: 0, losses: 0 },
+    season: 2027,
+  });
+  assert.ok(!content.includes("Preseason:"));
+  assert.ok(content.includes("📅 No completed games in this season yet"));
 });

@@ -77,10 +77,10 @@ function isRegularSeasonMonth(date = new Date()) {
   return month >= 10;
 }
 
-// ESPN's schedule query numbers a season by the year it ends for the regular
-// season, but by the year it starts for the postseason (one year earlier).
+// ESPN's schedule query numbers a season by the year it ends for the preseason and
+// regular season, but by the year it starts for the postseason (one year earlier).
 function scheduleSeasons(season) {
-  return { regularSeason: season, postseason: season - 1 };
+  return { preseason: season, regularSeason: season, postseason: season - 1 };
 }
 
 // ESPN reports split records as "6-2" and a streak as "W3", but sends "-" for
@@ -90,6 +90,13 @@ function matchOrEmpty(value, pattern) {
 }
 
 // One compact line for the splits that ESPN already provides alongside the record.
+function tallyPreseason(games) {
+  const played = games.filter((g) => g.preseason && g.completed);
+  if (played.length === 0) return null;
+  const wins = played.filter((g) => g.teamScore > g.oppScore).length;
+  return { wins, losses: played.length - wins };
+}
+
 function formatRecordDetails(record) {
   const recordPattern = /^\d+-\d+$/;
   const home = matchOrEmpty(record?.home, recordPattern);
@@ -154,14 +161,18 @@ async function fetchSeasonSchedule(teamAbbr, season) {
     const upper = teamAbbr.toUpperCase();
     const espnId = ESPN_TEAM_IDS[upper];
     const espnAbbr = ESPN_ABBR[upper] || upper;
-    const { regularSeason, postseason } = scheduleSeasons(season);
+    const { preseason, regularSeason, postseason } = scheduleSeasons(season);
 
-    const [regData, postData] = await Promise.all([
+    const [preData, regData, postData] = await Promise.all([
+      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${preseason}&seasontype=1`, { headers: ESPN_HEADERS }),
       axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${regularSeason}&seasontype=2`, { headers: ESPN_HEADERS }),
       axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${postseason}&seasontype=3`, { headers: ESPN_HEADERS }),
     ]);
 
-    return parseSchedule(regData.data, postData.data, espnAbbr);
+    return parseSchedule(
+      { preseason: preData.data, regularSeason: regData.data, postseason: postData.data },
+      espnAbbr
+    );
   } catch (error) {
     console.error(`Failed to fetch NBA games: ${error.message}`);
     return [];
@@ -177,6 +188,7 @@ function parseGame(event, teamAbbr) {
   if (!teamComp || !oppComp) return null;
   return {
     date: event.date,
+    preseason: event.gameType === 1,
     postseason: event.gameType === 3,
     completed: Boolean(comp.status?.type?.completed),
     opponent: oppComp.team.abbreviation,
@@ -191,9 +203,11 @@ function toScore(score) {
   return score?.value ?? parseFloat(score) ?? 0;
 }
 
-// Merges the regular-season and postseason payloads into one chronological list.
-function parseSchedule(regularSeason, postseason, teamAbbr) {
+// Merges the preseason, regular-season and postseason payloads into one
+// chronological list.
+function parseSchedule({ preseason, regularSeason, postseason } = {}, teamAbbr) {
   const events = [
+    ...(preseason?.events || []).map((e) => ({ ...e, gameType: 1 })),
     ...(regularSeason?.events || []).map((e) => ({ ...e, gameType: 2 })),
     ...(postseason?.events || []).map((e) => ({ ...e, gameType: 3 })),
   ];
@@ -288,6 +302,8 @@ async function fetchTeamSeason(teamAbbr, deps = { fetchStandings, fetchSeasonSch
     return { season: currentSeason, record, games };
   }
 
+  // Neither preseason nor regular season has been played yet, so show the last
+  // completed season instead of an empty record.
   const previousSeason = currentSeason - 1;
   console.log(`No games played in the ${currentSeason} season yet, showing ${previousSeason}.`);
   record = (await deps.fetchStandings(teamAbbr, previousSeason)) || record;
@@ -308,7 +324,9 @@ function formatGameResult(game) {
     timeZone: "America/New_York",
   });
 
-  return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
+  // Preseason results do not count toward the record, so label them.
+  const note = game.preseason ? " · PS" : "";
+  return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr}${note})`;
 }
 
 function formatLiveGame(game) {
@@ -326,7 +344,8 @@ function formatNextGame(game) {
     timeZone: "America/New_York",
   });
 
-  return `🏟️ Next: ${prefix} ${game.opponent} — ${when} ET`;
+  const note = game.preseason ? " · PS" : "";
+  return `🏟️ Next: ${prefix} ${game.opponent} — ${when} ET${note}`;
 }
 
 function generateBarChart(percent, size) {
@@ -497,6 +516,10 @@ function renderGist({ team, games, record, season, liveGame }) {
   }
   lines.push("");
 
+  // Preseason results do not count toward the standings, so tally them separately
+  // until the regular season starts.
+  const exhibition = wins + losses === 0 ? tallyPreseason(games) : null;
+
   // Season record
   if (wins + losses > 0) {
     lines.push(`📊 ${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)`);
@@ -510,6 +533,9 @@ function renderGist({ team, games, record, season, liveGame }) {
     if (details) {
       lines.push(details);
     }
+    lines.push("");
+  } else if (exhibition) {
+    lines.push(`📊 Preseason: ${exhibition.wins}W - ${exhibition.losses}L`);
     lines.push("");
   }
 
