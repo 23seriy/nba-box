@@ -23,6 +23,7 @@ Western Conference · Pacific Division
 📊 2026-2027 Record: 13W - 3L (81.3%)
    ████████████████████▎░░░░
 🏅 1st in Pacific Division
+🏠 6-2 · ✈️ 7-1 · 🔥 L1 · 📈 Last 10: 9-1
 
 **📅 Recent Games:**
 ```
@@ -44,7 +45,8 @@ The block above is generated from the live example gist and refreshed once a day
 ### Features
 
 - 🔴 **Live scores** with the game clock while your team plays.
-- 📊 **Season record** with a win-rate bar and division/conference standing.
+- 📊 **Season record** with a win-rate bar, division/conference standing, home/road splits, current
+  streak and last-10 form.
 - 📅 **Last five results** and the **next game** with tip-off time in ET.
 - 🏀 **All 30 teams** — just set one abbreviation.
 - 🔁 **No maintenance** — GitHub Actions refreshes the gist hourly.
