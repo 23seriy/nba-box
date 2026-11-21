@@ -1,7 +1,7 @@
 name: CI
 on:
+  # Every pull request, so stacked PRs (which target another branch) are checked too.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 jobs:
