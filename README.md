@@ -7,7 +7,7 @@
 
 📌✨ For more pinned-gist projects like this one, check out [awesome-pinned-gists](https://github.com/matchai/awesome-pinned-gists).
 
-🔎 **[Browse a live example gist →](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — refreshed every hour.
+🔎 **[Browse a live example gist →](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — updated automatically.
 
 ---
 
@@ -50,14 +50,15 @@ The block above is generated from the live example gist and refreshed once a day
 - 📅 **Last five results** and the **next game** with tip-off time in ET, including preseason games
   (marked `PS`, with a preseason tally until the regular season starts).
 - 🏀 **All 30 teams** — just set one abbreviation.
-- 🔁 **No maintenance** — GitHub Actions refreshes the gist hourly.
+- 🔁 **No maintenance** — GitHub Actions refreshes the gist on an hourly schedule.
 - 🔑 **No API key** — ESPN's public endpoints only.
 
 ### How it works
 
-GitHub Actions refreshes the gist every hour, so results and live scores appear within the hour. The
-season is read from ESPN rather than the calendar: until a game of the new season is played, the most
-recently completed season (including its playoff run) is shown instead of an empty record.
+GitHub Actions refreshes the gist on an hourly schedule, so results and live scores usually appear within
+the hour. GitHub may delay or skip scheduled runs, so expect occasional gaps (see the FAQ). The season is
+read from ESPN rather than the calendar: until a game of the new season is played, the most recently
+completed season (including its playoff run) is shown instead of an empty record.
 
 ## Setup
 
@@ -121,8 +122,9 @@ with the `gist` scope.
 **The gist does not update after editing the workflow** — scheduled workflows only reload their
 definition after an event triggers the workflow; run it once from **Actions → Update NBA Gist → Run workflow**.
 
-**The gist is out of date** — scheduled runs can be delayed or skipped (and GitHub disables them after
-60 days without repository activity). Trigger **Actions → Update NBA Gist → Run workflow** to refresh on demand.
+**The gist is out of date** — scheduled runs can be delayed or skipped, sometimes by hours (and GitHub
+disables them after 60 days without repository activity). Trigger **Actions → Update NBA Gist → Run workflow**
+to refresh on demand.
 
 **`Unknown NBA_TEAM "XYZ"`** — use one of the abbreviations in the table below.
 
