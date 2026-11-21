@@ -209,16 +209,27 @@ test("validateConfig rejects the placeholder values from .env.example", () => {
   );
 });
 
-test("getDemoData builds five completed games for the requested team", () => {
+test("getDemoData builds five completed games plus a scheduled one", () => {
   const demo = getDemoData("gsw");
   assert.equal(demo.team.full_name, "Golden State Warriors");
   assert.equal(demo.season, espnSeason());
-  assert.equal(demo.games.length, 5);
-  for (const game of demo.games) {
-    assert.equal(game.completed, true);
+
+  const completed = demo.games.filter((g) => g.completed);
+  assert.equal(completed.length, 5);
+  for (const game of completed) {
     assert.notEqual(game.opponent, "GSW");
     assert.ok(game.teamScore > 0 && game.oppScore > 0);
   }
+
+  const upcoming = demo.games.filter((g) => !g.completed);
+  assert.equal(upcoming.length, 1);
+  assert.ok(new Date(upcoming[0].date) > new Date(), "upcoming game should be in the future");
+});
+
+test("renderGist shows the next game for demo data", () => {
+  const { content } = renderGist(getDemoData("LAL"));
+  assert.ok(content.includes("🏟️ Next: vs "));
+  assert.ok(!content.includes("🔴 Live"));
 });
 
 test("getDemoData falls back to a synthetic team", () => {

@@ -328,6 +328,20 @@ function getDemoData(teamAbbr) {
       oppScore,
     };
   });
+  // A scheduled game so the demo shows the next-game line too.
+  const upcoming = new Date();
+  upcoming.setDate(upcoming.getDate() + 2);
+  // 03:00 UTC is a typical 10 PM Eastern tip-off.
+  upcoming.setUTCHours(3, 0, 0, 0);
+  games.push({
+    date: upcoming.toISOString(),
+    completed: false,
+    isHome: true,
+    opponent: ESPN_ABBR[opponents[1]] || opponents[1],
+    teamScore: 0,
+    oppScore: 0,
+  });
+
   return {
     team,
     games,

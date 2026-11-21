@@ -1,9 +1,12 @@
 name: Update NBA Gist
 on:
   schedule:
-    # Just after midnight UTC. GitHub delays scheduled runs most at the top of the
-    # hour, so a non-zero minute is more reliable.
-    - cron: "17 0 * * *"
+    # Hourly, so results and live scores reach the gist within the hour. GitHub
+    # delays scheduled runs most at the top of the hour, hence the non-zero minute.
+    - cron: "17 * * * *"
+    # The README preview only needs a daily refresh, so it does not add a commit
+    # after every score change.
+    - cron: "23 0 * * *"
   workflow_dispatch:
 jobs:
   update-gist:
@@ -22,7 +25,12 @@ jobs:
           # Latest Node 26 release, so setup-node does not need a pinned patch version.
           check-latest: true
       - name: Update gist
-        run: node dist/index.js --update-readme
+        run: |
+          args=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event.schedule }}" = "23 0 * * *" ]; then
+            args="--update-readme"
+          fi
+          node dist/index.js $args
         env:
           GIST_ID: ${{ secrets.GIST_ID }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
