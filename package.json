@@ -7,6 +7,23 @@
   "engines": {
     "node": ">=26"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/23seriy/nba-box.git"
+  },
+  "bugs": {
+    "url": "https://github.com/23seriy/nba-box/issues"
+  },
+  "homepage": "https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb",
+  "keywords": [
+    "nba",
+    "basketball",
+    "github-gist",
+    "pinned-gist",
+    "profile-readme",
+    "espn",
+    "github-action"
+  ],
   "scripts": {
     "start": "node index.js",
     "test": "node --test",
