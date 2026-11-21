@@ -534,7 +534,10 @@ test("renderGist never emits placeholder or missing values", () => {
       // and a separator may not dangle at the end.
       assert.ok(!/(^|·\s)-\s*($|·)/.test(line), `${scenario.name}: placeholder value "${line}"`);
       assert.ok(!/·\s*$|:\s*$/.test(line), `${scenario.name}: dangling separator "${line}"`);
-      assert.ok(!/^[🏠✈️🔥📈🏅]\s*(·|$)/.test(line), `${scenario.name}: stat without a value "${line}"`);
+      assert.ok(
+        !/^(?:🏠|✈️|🔥|📈|🏅)\s*(?:·|$)/u.test(line),
+        `${scenario.name}: stat without a value "${line}"`
+      );
     }
   }
 });
