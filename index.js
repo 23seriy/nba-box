@@ -329,9 +329,12 @@ function formatGameResult(game) {
   return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr}${note})`;
 }
 
-function formatLiveGame(game) {
-  const prefix = game.isHome ? "vs" : "@";
-  return `🔴 Live: ${prefix} ${game.opponent} — ${game.teamScore}-${game.oppScore} (${game.detail})`;
+// `teamAbbreviation` is the followed team; home side is listed first, as on a scoreboard.
+function formatLiveGame(game, teamAbbreviation) {
+  const us = `${teamAbbreviation} ${game.teamScore}`;
+  const them = `${game.opponent} ${game.oppScore}`;
+  const [left, right] = game.isHome ? [us, them] : [them, us];
+  return `🔴 **Live:** ${left} - ${right} (${game.detail})`;
 }
 
 function formatNextGame(game) {
@@ -345,7 +348,7 @@ function formatNextGame(game) {
   });
 
   const note = game.preseason ? " · PS" : "";
-  return `🏟️ Next: ${prefix} ${game.opponent} — ${when} ET${note}`;
+  return `🏟️ **Next:** ${prefix} ${game.opponent} — ${when} ET${note}`;
 }
 
 function generateBarChart(percent, size) {
@@ -363,16 +366,16 @@ function generateBarChart(percent, size) {
 
 // Demo data for preview without API key
 const DEMO_TEAMS = {
-  LAL: { id: 13, abbreviation: "LAL", city: "Los Angeles", name: "Lakers", full_name: "Los Angeles Lakers", conference: "West", division: "Pacific" },
-  BOS: { id: 2, abbreviation: "BOS", city: "Boston", name: "Celtics", full_name: "Boston Celtics", conference: "East", division: "Atlantic" },
-  GSW: { id: 9, abbreviation: "GSW", city: "Golden State", name: "Warriors", full_name: "Golden State Warriors", conference: "West", division: "Pacific" },
-  NYK: { id: 18, abbreviation: "NYK", city: "New York", name: "Knicks", full_name: "New York Knicks", conference: "East", division: "Atlantic" },
-  CHI: { id: 4, abbreviation: "CHI", city: "Chicago", name: "Bulls", full_name: "Chicago Bulls", conference: "East", division: "Central" },
-  MIA: { id: 14, abbreviation: "MIA", city: "Miami", name: "Heat", full_name: "Miami Heat", conference: "East", division: "Southeast" },
-  DAL: { id: 6, abbreviation: "DAL", city: "Dallas", name: "Mavericks", full_name: "Dallas Mavericks", conference: "West", division: "Southwest" },
-  DEN: { id: 7, abbreviation: "DEN", city: "Denver", name: "Nuggets", full_name: "Denver Nuggets", conference: "West", division: "Northwest" },
-  PHX: { id: 21, abbreviation: "PHX", city: "Phoenix", name: "Suns", full_name: "Phoenix Suns", conference: "West", division: "Pacific" },
-  OKC: { id: 25, abbreviation: "OKC", city: "Oklahoma City", name: "Thunder", full_name: "Oklahoma City Thunder", conference: "West", division: "Northwest" },
+  LAL: { id: 13, abbreviation: "LAL", city: "Los Angeles", name: "Lakers", full_name: "Los Angeles Lakers", conference: "Western", division: "Pacific" },
+  BOS: { id: 2, abbreviation: "BOS", city: "Boston", name: "Celtics", full_name: "Boston Celtics", conference: "Eastern", division: "Atlantic" },
+  GSW: { id: 9, abbreviation: "GSW", city: "Golden State", name: "Warriors", full_name: "Golden State Warriors", conference: "Western", division: "Pacific" },
+  NYK: { id: 18, abbreviation: "NYK", city: "New York", name: "Knicks", full_name: "New York Knicks", conference: "Eastern", division: "Atlantic" },
+  CHI: { id: 4, abbreviation: "CHI", city: "Chicago", name: "Bulls", full_name: "Chicago Bulls", conference: "Eastern", division: "Central" },
+  MIA: { id: 14, abbreviation: "MIA", city: "Miami", name: "Heat", full_name: "Miami Heat", conference: "Eastern", division: "Southeast" },
+  DAL: { id: 6, abbreviation: "DAL", city: "Dallas", name: "Mavericks", full_name: "Dallas Mavericks", conference: "Western", division: "Southwest" },
+  DEN: { id: 7, abbreviation: "DEN", city: "Denver", name: "Nuggets", full_name: "Denver Nuggets", conference: "Western", division: "Northwest" },
+  PHX: { id: 21, abbreviation: "PHX", city: "Phoenix", name: "Suns", full_name: "Phoenix Suns", conference: "Western", division: "Pacific" },
+  OKC: { id: 25, abbreviation: "OKC", city: "Oklahoma City", name: "Thunder", full_name: "Oklahoma City Thunder", conference: "Western", division: "Northwest" },
 };
 
 // mulberry32: keeps --demo output stable so diffs and docs do not churn.
@@ -390,7 +393,7 @@ function getDemoData(teamAbbr) {
   const abbr = teamAbbr.toUpperCase();
   const team = DEMO_TEAMS[abbr] || {
     id: 1, abbreviation: abbr, city: abbr, name: abbr,
-    full_name: `${abbr} Team`, conference: "West", division: "Pacific",
+    full_name: `${abbr} Team`, conference: "Western", division: "Pacific",
   };
   team.standingSummary ||= `1st in ${team.division} Division`;
   // DEMO_TEAMS entries use ESPN's "GS" rather than "GSW".
@@ -520,28 +523,34 @@ function renderGist({ team, games, record, season, liveGame }) {
   // until the regular season starts.
   const exhibition = wins + losses === 0 ? tallyPreseason(games) : null;
 
-  // Season record
+  // Season record. Markdown joins adjacent lines into one paragraph, so the stats
+  // block is emitted as a single paragraph with hard breaks (two trailing spaces).
   if (wins + losses > 0) {
-    lines.push(`📊 ${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)`);
-    lines.push(`   ${generateBarChart(parseFloat(winPct), 25)}`);
+    const stats = [
+      `📊 **${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)**`,
+      `\`${generateBarChart(parseFloat(winPct), 25)}\``,
+    ];
     const standing = team.standingSummary ? formatStanding(team.standingSummary) : "";
     const seed = formatSeed(record?.seed);
     if (standing || seed) {
-      lines.push(`🏅 ${[standing, seed].filter(Boolean).join(" · ")}`);
+      stats.push(`🏅 ${[standing, seed].filter(Boolean).join(" · ")}`);
     }
     const details = formatRecordDetails(record);
     if (details) {
-      lines.push(details);
+      stats.push(details);
     }
+    // <br> rather than trailing double spaces: it survives editors that strip
+    // trailing whitespace.
+    lines.push(stats.join("<br>\n"));
     lines.push("");
   } else if (exhibition) {
-    lines.push(`📊 Preseason: ${exhibition.wins}W - ${exhibition.losses}L`);
+    lines.push(`📊 **Preseason: ${exhibition.wins}W - ${exhibition.losses}L**`);
     lines.push("");
   }
 
   // Recent games
   if (recentGames.length > 0) {
-    lines.push("**📅 Recent Games:**");
+    lines.push("**📅 Recent Games**");
     lines.push("```");
     for (const game of recentGames) {
       lines.push(formatGameResult(game));
@@ -553,7 +562,7 @@ function renderGist({ team, games, record, season, liveGame }) {
 
   if (liveGame) {
     lines.push("");
-    lines.push(formatLiveGame(liveGame));
+    lines.push(formatLiveGame(liveGame, team.abbreviation));
   }
 
   if (nextGame) {
