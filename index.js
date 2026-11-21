@@ -81,6 +81,28 @@ function scheduleSeasons(season) {
   return { regularSeason: season, postseason: season - 1 };
 }
 
+// ESPN reports split records as "6-2" and a streak as "W3", but sends "-" for
+// values it has no data for yet (early in a season, for example).
+function matchOrEmpty(value, pattern) {
+  return typeof value === "string" && pattern.test(value) ? value : "";
+}
+
+// One compact line for the splits that ESPN already provides alongside the record.
+function formatRecordDetails(record) {
+  const recordPattern = /^\d+-\d+$/;
+  const home = matchOrEmpty(record?.home, recordPattern);
+  const road = matchOrEmpty(record?.road, recordPattern);
+  const streak = matchOrEmpty(record?.streak, /^[WL]\d+$/);
+  const lastTen = matchOrEmpty(record?.lastTen, recordPattern);
+
+  const parts = [];
+  if (home) parts.push(`🏠 ${home}`);
+  if (road) parts.push(`✈️ ${road}`);
+  if (streak) parts.push(`🔥 ${streak}`);
+  if (lastTen) parts.push(`📈 Last 10: ${lastTen}`);
+  return parts.join(" · ");
+}
+
 function formatStanding(summary) {
   // ESPN reports play-in teams as e.g. "10th in Eastern Conference Division".
   return summary.replace(/ Conference Division$/, " Conference");
@@ -208,12 +230,18 @@ async function fetchStandings(teamAbbr, season) {
           (e) => e.team?.abbreviation?.toUpperCase() === espnAbbr
         );
         if (entry) {
-          const stats = Object.fromEntries((entry.stats || []).map((s) => [s.name, s.value]));
+          const stats = Object.fromEntries(
+            (entry.stats || []).map((s) => [s.name || s.shortDisplayName, s.displayValue])
+          );
           return {
-            wins: stats.wins || 0,
-            losses: stats.losses || 0,
+            wins: Number(stats.wins) || 0,
+            losses: Number(stats.losses) || 0,
             conference: conf.name?.replace(" Conference", "") || "",
             division: div.name?.replace(" Division", "") || "",
+            home: stats.Home,
+            road: stats.Road,
+            streak: stats.streak,
+            lastTen: stats["Last Ten Games"],
           };
         }
       }
@@ -304,18 +332,31 @@ const DEMO_TEAMS = {
   OKC: { id: 25, abbreviation: "OKC", city: "Oklahoma City", name: "Thunder", full_name: "Oklahoma City Thunder", conference: "West", division: "Northwest" },
 };
 
+// mulberry32: keeps --demo output stable so diffs and docs do not churn.
+function demoRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), a | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function getDemoData(teamAbbr) {
   const abbr = teamAbbr.toUpperCase();
   const team = DEMO_TEAMS[abbr] || {
     id: 1, abbreviation: abbr, city: abbr, name: abbr,
     full_name: `${abbr} Team`, conference: "West", division: "Pacific",
   };
+  team.standingSummary ||= `1st in ${team.division} Division`;
   // DEMO_TEAMS entries use ESPN's "GS" rather than "GSW".
   const opponents = ["GSW", "DEN", "PHX", "SAC", "DAL"].map((t) => ESPN_ABBR[t] || t).filter((t) => t !== abbr);
+  const rnd = demoRandom([...abbr].reduce((acc, c) => acc + c.charCodeAt(0), 0));
   const games = opponents.slice(0, 5).map((opp, i) => {
-    const won = Math.random() > 0.4;
-    const teamScore = won ? 105 + Math.floor(Math.random() * 20) : 95 + Math.floor(Math.random() * 10);
-    const oppScore = won ? 95 + Math.floor(Math.random() * 10) : 105 + Math.floor(Math.random() * 20);
+    const won = rnd() > 0.4;
+    const teamScore = won ? 105 + Math.floor(rnd() * 20) : 95 + Math.floor(rnd() * 10);
+    const oppScore = won ? 95 + Math.floor(rnd() * 10) : 105 + Math.floor(rnd() * 20);
     const d = new Date();
     d.setDate(d.getDate() - (i * 3 + 1));
     return {
@@ -345,7 +386,14 @@ function getDemoData(teamAbbr) {
   return {
     team,
     games,
-    record: { wins: 48, losses: 22 },
+    record: {
+      wins: 48,
+      losses: 22,
+      home: "26-10",
+      road: "22-12",
+      streak: "W2",
+      lastTen: "7-3",
+    },
     season: espnSeason(),
   };
 }
@@ -430,6 +478,10 @@ function renderGist({ team, games, record, season, liveGame }) {
     lines.push(`   ${generateBarChart(parseFloat(winPct), 25)}`);
     if (team.standingSummary) {
       lines.push(`🏅 ${formatStanding(team.standingSummary)}`);
+    }
+    const details = formatRecordDetails(record);
+    if (details) {
+      lines.push(details);
     }
     lines.push("");
   }
@@ -555,6 +607,7 @@ if (require.main === module) {
 module.exports = {
   espnSeason,
   formatStanding,
+  formatRecordDetails,
   parseGame,
   formatGameResult,
   formatNextGame,

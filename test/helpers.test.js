@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   espnSeason,
   formatStanding,
+  formatRecordDetails,
   parseGame,
   formatGameResult,
   formatNextGame,
@@ -407,4 +408,48 @@ test("renderGist omits the live line when no game is in progress", () => {
     season: 2027,
   });
   assert.ok(!content.includes("🔴 Live"));
+});
+
+test("formatRecordDetails combines splits, streak and last ten", () => {
+  assert.equal(
+    formatRecordDetails({ home: "6-2", road: "7-1", streak: "L1", lastTen: "9-1" }),
+    "🏠 6-2 · ✈️ 7-1 · 🔥 L1 · 📈 Last 10: 9-1"
+  );
+});
+
+test("formatRecordDetails skips missing or malformed splits", () => {
+  // ESPN leaves these out early in a season, and reports "-" instead of a record.
+  assert.equal(formatRecordDetails({ home: "1-0" }), "🏠 1-0");
+  assert.equal(formatRecordDetails({ home: "-", road: null, streak: "", lastTen: undefined }), "");
+  assert.equal(formatRecordDetails(null), "");
+  assert.equal(formatRecordDetails({}), "");
+});
+
+test("getDemoData is deterministic", () => {
+  // Dates stay relative to today, so compare everything else.
+  const shape = ({ games }) => games.map(({ date: _date, ...rest }) => rest);
+  const first = getDemoData("LAL");
+  const second = getDemoData("LAL");
+  assert.deepEqual(shape(first), shape(second));
+  assert.deepEqual(first.record, second.record);
+  // Different teams still get different results.
+  assert.notDeepEqual(shape(getDemoData("BOS")), shape(first));
+});
+
+test("renderGist shows the record details line for demo data", () => {
+  const { content } = renderGist(getDemoData("LAL"));
+  assert.ok(content.includes("🏠 26-10 · ✈️ 22-12 · 🔥 W2 · 📈 Last 10: 7-3"));
+  // The demo covers every line of the real output, so it can be used as a preview.
+  assert.ok(content.includes("🏅 1st in Pacific Division"));
+});
+
+test("renderGist omits the details line when no splits are known", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [],
+    record: { wins: 1, losses: 0 },
+    season: 2027,
+  });
+  assert.ok(content.includes("📊 2026-2027 Record: 1W - 0L (100.0%)"));
+  assert.ok(!content.includes("🏠"));
 });
