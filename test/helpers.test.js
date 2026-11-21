@@ -168,8 +168,8 @@ test("formatGameResult does not depend on the runtime timezone", () => {
 
 test("formatNextGame shows the tip-off in Eastern time", () => {
   const line = formatNextGame({ date: "2026-11-18T04:00Z", isHome: false, opponent: "CHA" });
-  assert.equal(line, "🏟️ Next: @ CHA — Nov 17, 11:00 PM ET");
-  assert.equal(formatNextGame({ date: "2026-11-18T04:00Z", isHome: true, opponent: "CHA" }).startsWith("🏟️ Next: vs CHA"), true);
+  assert.equal(line, "🏟️ **Next:** @ CHA — Nov 17, 11:00 PM ET");
+  assert.equal(formatNextGame({ date: "2026-11-18T04:00Z", isHome: true, opponent: "CHA" }).startsWith("🏟️ **Next:** vs CHA"), true);
 });
 
 test("generateBarChart fills edge cases exactly", () => {
@@ -241,8 +241,8 @@ test("getDemoData builds five completed games plus a scheduled one", () => {
 
 test("renderGist shows the next game for demo data", () => {
   const { content } = renderGist(getDemoData("LAL"));
-  assert.ok(content.includes("🏟️ Next: vs "));
-  assert.ok(!content.includes("🔴 Live"));
+  assert.ok(content.includes("🏟️ **Next:** vs "));
+  assert.ok(!content.includes("Live:**"));
 });
 
 test("getDemoData falls back to a synthetic team", () => {
@@ -276,10 +276,10 @@ test("renderGist renders the record, standing and only the last five games", () 
   assert.ok(content.includes('<img src="https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg"'));
   assert.ok(content.includes("### 👑 Los Angeles Lakers (LAL)"));
   assert.ok(content.includes("Western Conference · Pacific Division"));
-  assert.ok(content.includes("📊 2025-2026 Record: 53W - 29L (64.6%)"));
+  assert.ok(content.includes("📊 **2025-2026 Record: 53W - 29L (64.6%)**"));
   assert.ok(content.includes("🏅 1st in Pacific Division"));
   assert.equal(content.match(/[✅❌] [WL]/g).length, 5);
-  assert.ok(!content.includes("🏟️ Next:"));
+  assert.ok(!content.includes("🏟️ **Next:**"));
 });
 
 test("renderGist handles an unplayed season and shows the next game", () => {
@@ -295,7 +295,7 @@ test("renderGist handles an unplayed season and shows the next game", () => {
   assert.ok(!content.includes("📊"));
   assert.ok(!content.includes(" Conference · "));
   assert.ok(content.includes("📅 No completed games in this season yet"));
-  assert.ok(content.includes("🏟️ Next: vs BOS"));
+  assert.ok(content.includes("🏟️ **Next:** vs BOS"));
 });
 
 test("replacePreview swaps only the marked block", () => {
@@ -374,14 +374,14 @@ test("parseLiveGame ignores games that are not in progress", () => {
 });
 
 test("formatLiveGame shows the score and game clock", () => {
+  // Both abbreviations, so the score is unambiguous.
   assert.equal(
-    formatLiveGame({ opponent: "UTAH", isHome: true, teamScore: 6, oppScore: 11, detail: "8:49 - 1st Quarter" }),
-    "🔴 Live: vs UTAH — 6-11 (8:49 - 1st Quarter)"
+    formatLiveGame({ opponent: "UTAH", isHome: true, teamScore: 6, oppScore: 11, detail: "8:49 - 1st Quarter" }, "LAL"),
+    "🔴 **Live:** LAL 6 - UTAH 11 (8:49 - 1st Quarter)"
   );
-  assert.ok(
-    formatLiveGame({ opponent: "BOS", isHome: false, teamScore: 20, oppScore: 18, detail: "2:10 - 2nd" }).startsWith(
-      "🔴 Live: @ BOS — 20-18"
-    )
+  assert.equal(
+    formatLiveGame({ opponent: "BOS", isHome: false, teamScore: 20, oppScore: 18, detail: "2:10 - 2nd" }, "LAL"),
+    "🔴 **Live:** BOS 18 - LAL 20 (2:10 - 2nd)"
   );
 });
 
@@ -405,11 +405,11 @@ test("renderGist shows the live game above the next game", () => {
     liveGame: { opponent: "UTAH", isHome: true, teamScore: 6, oppScore: 11, detail: "8:49 - 1st Quarter" },
   });
 
-  const liveIndex = content.indexOf("🔴 Live: vs UTAH — 6-11");
-  const nextIndex = content.indexOf("🏟️ Next: @ SAC");
+  const liveIndex = content.indexOf("🔴 **Live:** LAL 6 - UTAH 11");
+  const nextIndex = content.indexOf("🏟️ **Next:** @ SAC");
   assert.ok(liveIndex > -1 && nextIndex > -1);
   assert.ok(liveIndex < nextIndex);
-  assert.equal(content.match(/🔴 Live/g).length, 1);
+  assert.equal(content.match(/🔴 \*\*Live:\*\*/g).length, 1);
 });
 
 test("renderGist omits the live line when no game is in progress", () => {
@@ -419,7 +419,7 @@ test("renderGist omits the live line when no game is in progress", () => {
     record: null,
     season: 2027,
   });
-  assert.ok(!content.includes("🔴 Live"));
+  assert.ok(!content.includes("Live:**"));
 });
 
 test("formatRecordDetails combines splits, streak and last ten", () => {
@@ -462,7 +462,7 @@ test("renderGist omits the details line when no splits are known", () => {
     record: { wins: 1, losses: 0 },
     season: 2027,
   });
-  assert.ok(content.includes("📊 2026-2027 Record: 1W - 0L (100.0%)"));
+  assert.ok(content.includes("📊 **2026-2027 Record: 1W - 0L (100.0%)**"));
   assert.ok(!content.includes("🏠"));
 });
 
@@ -809,7 +809,7 @@ test("renderGist tallies preseason games until the regular season starts", () =>
     season: 2027,
   });
 
-  assert.ok(content.includes("📊 Preseason: 1W - 2L"));
+  assert.ok(content.includes("📊 **Preseason: 1W - 2L**"));
   assert.ok(content.includes("(Oct 7 · PS)"));
   assert.ok(!content.includes("Record:"));
 });
@@ -834,4 +834,28 @@ test("renderGist shows no preseason line when no preseason game has been played"
   });
   assert.ok(!content.includes("Preseason:"));
   assert.ok(content.includes("📅 No completed games in this season yet"));
+});
+
+// Markdown collapses adjacent lines into one paragraph, which is what made the
+// record, standing and splits run together on GitHub. Guard the hard breaks.
+test("renderGist separates the stat lines with markdown hard breaks", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers", standingSummary: "1st in Pacific Division" },
+    games: [],
+    record: { wins: 14, losses: 3, home: "7-2", road: "7-1", streak: "W1", lastTen: "9-1", seed: "1" },
+    season: 2027,
+  });
+
+  const block = content.split("\n\n").find((paragraph) => paragraph.includes("Record: 14W"));
+  const lines = block.split("\n");
+  assert.equal(lines.length, 4, `expected four stat lines, got: ${JSON.stringify(lines)}`);
+  for (const line of lines.slice(0, -1)) {
+    assert.ok(line.endsWith("<br>"), `line needs an explicit hard break: ${JSON.stringify(line)}`);
+    assert.ok(line.trim().length > 0);
+  }
+  assert.ok(!/ {2}$/.test(block), "no trailing whitespace, which editors strip");
+  // The bar is a code span so it stays monospaced and aligned.
+  assert.ok(lines[1].trimStart().startsWith("`"));
+  assert.ok(lines[1].includes("█"));
+  assert.ok(lines[1].replace("<br>", "").trimEnd().endsWith("`"));
 });
