@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   espnSeason,
   formatStanding,
+  formatSeed,
   formatRecordDetails,
   parseGame,
   formatGameResult,
@@ -452,4 +453,91 @@ test("renderGist omits the details line when no splits are known", () => {
   });
   assert.ok(content.includes("📊 2026-2027 Record: 1W - 0L (100.0%)"));
   assert.ok(!content.includes("🏠"));
+});
+
+test("formatSeed renders a compact playoff seed", () => {
+  assert.equal(formatSeed("2"), "#2 seed");
+  assert.equal(formatSeed(1), "#1 seed");
+  assert.equal(formatSeed("11"), "#11 seed");
+});
+
+test("formatSeed ignores values ESPN cannot have assigned", () => {
+  for (const seed of [undefined, null, "", "-", "0", "31", "n/a"]) {
+    assert.equal(formatSeed(seed), "");
+  }
+});
+
+test("renderGist puts the seed on the standing line", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers", standingSummary: "1st in Pacific Division" },
+    games: [],
+    record: { wins: 14, losses: 3, seed: "1" },
+    season: 2027,
+  });
+  assert.ok(content.includes("🏅 1st in Pacific Division · #1 seed"));
+});
+
+test("renderGist shows the seed alone when there is no division standing", () => {
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers" },
+    games: [],
+    record: { wins: 14, losses: 3, seed: "4" },
+    season: 2027,
+  });
+  assert.ok(content.includes("🏅 #4 seed"));
+  assert.ok(!content.includes("🏅  · "));
+});
+
+// Guards against ESPN payload drift: no rendered line may contain a placeholder
+// or missing value, which is how the empty live score and split records slipped in.
+test("renderGist never emits placeholder or missing values", () => {
+  const completed = (date, opponent, teamScore, oppScore) => ({
+    date,
+    completed: true,
+    isHome: true,
+    opponent,
+    teamScore,
+    oppScore,
+  });
+
+  const scenarios = [
+    {
+      name: "full",
+      team: { abbreviation: "LAL", full_name: "Los Angeles Lakers", conference: "Western", division: "Pacific", standingSummary: "1st in Pacific Division" },
+      games: [completed("2026-11-17T03:00Z", "CHA", 118, 114)],
+      record: { wins: 14, losses: 3, home: "7-2", road: "7-1", streak: "W1", lastTen: "9-1", seed: "1" },
+      season: 2027,
+      liveGame: { opponent: "SAC", isHome: false, teamScore: 54, oppScore: 58, detail: "8:03 - 2nd Quarter" },
+    },
+    {
+      name: "unknown splits",
+      team: { abbreviation: "XXX", full_name: "XXX Team" },
+      games: [],
+      record: { wins: 0, losses: 0, home: "-", road: "-", streak: "-", lastTen: "-", seed: "-" },
+      season: 2027,
+    },
+    {
+      name: "no record",
+      team: { abbreviation: "XXX", full_name: "XXX Team" },
+      games: [],
+      record: null,
+      season: 2027,
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const { content } = renderGist(scenario);
+    assert.ok(!/undefined|NaN|null|\[object Object\]/.test(content), `${scenario.name}: ${content}`);
+
+    for (const line of content.split("\n")) {
+      // A stat line that lost its value looks like "🏠 " or "🏠  · ✈️ 3-1",
+      // and a separator may not dangle at the end.
+      assert.ok(!/(^|·\s)-\s*($|·)/.test(line), `${scenario.name}: placeholder value "${line}"`);
+      assert.ok(!/·\s*$|:\s*$/.test(line), `${scenario.name}: dangling separator "${line}"`);
+      assert.ok(
+        !/^(?:🏠|✈️|🔥|📈|🏅)\s*(?:·|$)/u.test(line),
+        `${scenario.name}: stat without a value "${line}"`
+      );
+    }
+  }
 });
