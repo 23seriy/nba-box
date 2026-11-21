@@ -14,6 +14,7 @@ export default [
         __dirname: "readonly",
         setTimeout: "readonly",
         crypto: "readonly",
+        structuredClone: "readonly",
       },
     },
     rules: {
