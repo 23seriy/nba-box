@@ -1,4 +1,6 @@
 require("dotenv").config({ quiet: true });
+const fs = require("node:fs/promises");
+const path = require("node:path");
 const axios = require("axios");
 const { Octokit } = require("@octokit/rest");
 
@@ -75,10 +77,10 @@ function isRegularSeasonMonth(date = new Date()) {
   return month >= 10;
 }
 
-// ESPN's schedule query numbers a season by the year it ends for the regular
-// season, but by the year it starts for the postseason (one year earlier).
+// ESPN's schedule query numbers a season by the year it ends for the preseason and
+// regular season, but by the year it starts for the postseason (one year earlier).
 function scheduleSeasons(season) {
-  return { regularSeason: season, postseason: season - 1 };
+  return { preseason: season, regularSeason: season, postseason: season - 1 };
 }
 
 // ESPN reports split records as "6-2" and a streak as "W3", but sends "-" for
@@ -88,6 +90,13 @@ function matchOrEmpty(value, pattern) {
 }
 
 // One compact line for the splits that ESPN already provides alongside the record.
+function tallyPreseason(games) {
+  const played = games.filter((g) => g.preseason && g.completed);
+  if (played.length === 0) return null;
+  const wins = played.filter((g) => g.teamScore > g.oppScore).length;
+  return { wins, losses: played.length - wins };
+}
+
 function formatRecordDetails(record) {
   const recordPattern = /^\d+-\d+$/;
   const home = matchOrEmpty(record?.home, recordPattern);
@@ -114,6 +123,22 @@ function formatStanding(summary) {
   return summary.replace(/ Conference Division$/, " Conference");
 }
 
+function parseTeam(data, teamAbbr) {
+  const team = data?.team;
+  if (!team) return null;
+  const upper = teamAbbr.toUpperCase();
+  return {
+    id: ESPN_TEAM_IDS[upper],
+    abbreviation: upper,
+    city: team.location || "",
+    name: team.name,
+    full_name: team.displayName,
+    conference: "",
+    division: "",
+    standingSummary: team.standingSummary || "",
+  };
+}
+
 async function fetchTeam(teamAbbr) {
   try {
     const upper = teamAbbr.toUpperCase();
@@ -123,18 +148,7 @@ async function fetchTeam(teamAbbr) {
       return null;
     }
     const { data } = await axios.get(`${ESPN_BASE}/teams/${espnId}`, { headers: ESPN_HEADERS });
-    const team = data.team;
-    if (!team) return null;
-    return {
-      id: espnId,
-      abbreviation: upper,
-      city: team.location || "",
-      name: team.name,
-      full_name: team.displayName,
-      conference: "",
-      division: "",
-      standingSummary: team.standingSummary || "",
-    };
+    return parseTeam(data, upper);
   } catch (error) {
     // Returning null aborts the run; config problems are reported by validateConfig.
     console.error(`Failed to fetch NBA team: ${error.message}`);
@@ -147,22 +161,18 @@ async function fetchSeasonSchedule(teamAbbr, season) {
     const upper = teamAbbr.toUpperCase();
     const espnId = ESPN_TEAM_IDS[upper];
     const espnAbbr = ESPN_ABBR[upper] || upper;
-    const { regularSeason, postseason } = scheduleSeasons(season);
+    const { preseason, regularSeason, postseason } = scheduleSeasons(season);
 
-    const [regData, postData] = await Promise.all([
+    const [preData, regData, postData] = await Promise.all([
+      axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${preseason}&seasontype=1`, { headers: ESPN_HEADERS }),
       axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${regularSeason}&seasontype=2`, { headers: ESPN_HEADERS }),
       axios.get(`${ESPN_BASE}/teams/${espnId}/schedule?season=${postseason}&seasontype=3`, { headers: ESPN_HEADERS }),
     ]);
 
-    const events = [
-      ...(regData.data.events || []).map((e) => ({ ...e, gameType: 2 })),
-      ...(postData.data.events || []).map((e) => ({ ...e, gameType: 3 })),
-    ];
-
-    return events
-      .map((e) => parseGame(e, espnAbbr))
-      .filter(Boolean)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    return parseSchedule(
+      { preseason: preData.data, regularSeason: regData.data, postseason: postData.data },
+      espnAbbr
+    );
   } catch (error) {
     console.error(`Failed to fetch NBA games: ${error.message}`);
     return [];
@@ -178,6 +188,7 @@ function parseGame(event, teamAbbr) {
   if (!teamComp || !oppComp) return null;
   return {
     date: event.date,
+    preseason: event.gameType === 1,
     postseason: event.gameType === 3,
     completed: Boolean(comp.status?.type?.completed),
     opponent: oppComp.team.abbreviation,
@@ -190,6 +201,21 @@ function parseGame(event, teamAbbr) {
 function toScore(score) {
   if (typeof score === "number") return score;
   return score?.value ?? parseFloat(score) ?? 0;
+}
+
+// Merges the preseason, regular-season and postseason payloads into one
+// chronological list.
+function parseSchedule({ preseason, regularSeason, postseason } = {}, teamAbbr) {
+  const events = [
+    ...(preseason?.events || []).map((e) => ({ ...e, gameType: 1 })),
+    ...(regularSeason?.events || []).map((e) => ({ ...e, gameType: 2 })),
+    ...(postseason?.events || []).map((e) => ({ ...e, gameType: 3 })),
+  ];
+
+  return events
+    .map((e) => parseGame(e, teamAbbr))
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
 function parseLiveGame(scoreboard, teamAbbr) {
@@ -223,37 +249,42 @@ async function fetchLiveGame(teamAbbr) {
   }
 }
 
+// Walks ESPN's conference/division tree to find one team's standings entry.
+function parseStandings(data, teamAbbr) {
+  const espnAbbr = ESPN_ABBR[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
+  for (const conf of data?.children || []) {
+    for (const div of conf.children || []) {
+      const entry = (div.standings?.entries || []).find(
+        (e) => e.team?.abbreviation?.toUpperCase() === espnAbbr
+      );
+      if (!entry) continue;
+
+      const stats = Object.fromEntries(
+        (entry.stats || []).map((s) => [s.name || s.shortDisplayName, s.displayValue])
+      );
+      return {
+        wins: Number(stats.wins) || 0,
+        losses: Number(stats.losses) || 0,
+        conference: conf.name?.replace(" Conference", "") || "",
+        division: div.name?.replace(" Division", "") || "",
+        home: stats.Home,
+        road: stats.Road,
+        streak: stats.streak,
+        lastTen: stats["Last Ten Games"],
+        seed: stats.playoffSeed,
+      };
+    }
+  }
+  return null;
+}
+
 async function fetchStandings(teamAbbr, season) {
   try {
-    const espnAbbr = ESPN_ABBR[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
     const { data } = await axios.get(
       `${ESPN_BASE_V2}/standings?level=3&season=${season}&seasontype=2`,
       { headers: ESPN_HEADERS }
     );
-    for (const conf of (data.children || [])) {
-      for (const div of (conf.children || [])) {
-        const entry = (div.standings?.entries || []).find(
-          (e) => e.team?.abbreviation?.toUpperCase() === espnAbbr
-        );
-        if (entry) {
-          const stats = Object.fromEntries(
-            (entry.stats || []).map((s) => [s.name || s.shortDisplayName, s.displayValue])
-          );
-          return {
-            wins: Number(stats.wins) || 0,
-            losses: Number(stats.losses) || 0,
-            conference: conf.name?.replace(" Conference", "") || "",
-            division: div.name?.replace(" Division", "") || "",
-            home: stats.Home,
-            road: stats.Road,
-            streak: stats.streak,
-            lastTen: stats["Last Ten Games"],
-            seed: stats.playoffSeed,
-          };
-        }
-      }
-    }
-    return null;
+    return parseStandings(data, teamAbbr);
   } catch (error) {
     console.error(`Failed to fetch NBA standings: ${error.message}`);
     return null;
@@ -262,19 +293,21 @@ async function fetchStandings(teamAbbr, season) {
 
 // Picks the season being shown: the current ESPN season, or the most recently
 // completed one during the offseason, when no game of the current season has been played.
-async function fetchTeamSeason(teamAbbr) {
+async function fetchTeamSeason(teamAbbr, deps = { fetchStandings, fetchSeasonSchedule }) {
   const currentSeason = espnSeason();
-  let record = await fetchStandings(teamAbbr, currentSeason);
-  let games = await fetchSeasonSchedule(teamAbbr, currentSeason);
+  let record = await deps.fetchStandings(teamAbbr, currentSeason);
+  let games = await deps.fetchSeasonSchedule(teamAbbr, currentSeason);
 
   if (games.some((g) => g.completed)) {
     return { season: currentSeason, record, games };
   }
 
+  // Neither preseason nor regular season has been played yet, so show the last
+  // completed season instead of an empty record.
   const previousSeason = currentSeason - 1;
   console.log(`No games played in the ${currentSeason} season yet, showing ${previousSeason}.`);
-  record = (await fetchStandings(teamAbbr, previousSeason)) || record;
-  games = await fetchSeasonSchedule(teamAbbr, previousSeason);
+  record = (await deps.fetchStandings(teamAbbr, previousSeason)) || record;
+  games = await deps.fetchSeasonSchedule(teamAbbr, previousSeason);
 
   return { season: previousSeason, record, games };
 }
@@ -291,7 +324,9 @@ function formatGameResult(game) {
     timeZone: "America/New_York",
   });
 
-  return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
+  // Preseason results do not count toward the record, so label them.
+  const note = game.preseason ? " · PS" : "";
+  return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr}${note})`;
 }
 
 function formatLiveGame(game) {
@@ -309,7 +344,8 @@ function formatNextGame(game) {
     timeZone: "America/New_York",
   });
 
-  return `🏟️ Next: ${prefix} ${game.opponent} — ${when} ET`;
+  const note = game.preseason ? " · PS" : "";
+  return `🏟️ Next: ${prefix} ${game.opponent} — ${when} ET${note}`;
 }
 
 function generateBarChart(percent, size) {
@@ -480,6 +516,10 @@ function renderGist({ team, games, record, season, liveGame }) {
   }
   lines.push("");
 
+  // Preseason results do not count toward the standings, so tally them separately
+  // until the regular season starts.
+  const exhibition = wins + losses === 0 ? tallyPreseason(games) : null;
+
   // Season record
   if (wins + losses > 0) {
     lines.push(`📊 ${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)`);
@@ -493,6 +533,9 @@ function renderGist({ team, games, record, season, liveGame }) {
     if (details) {
       lines.push(details);
     }
+    lines.push("");
+  } else if (exhibition) {
+    lines.push(`📊 Preseason: ${exhibition.wins}W - ${exhibition.losses}L`);
     lines.push("");
   }
 
@@ -569,17 +612,33 @@ async function main(env = process.env) {
   }
 }
 
-async function writeReadme(content) {
+async function writeReadme(content, readmePath = undefined) {
   // Resolved from the caller's directory: inside the bundled action __dirname is dist/.
-  const readmePath = require("node:path").join(process.env.GITHUB_WORKSPACE || process.cwd(), "README.md");
-  const markdown = await require("node:fs/promises").readFile(readmePath, "utf8");
+  const target = readmePath || path.join(process.env.GITHUB_WORKSPACE || process.cwd(), "README.md");
+  const markdown = await fs.readFile(target, "utf8");
   const updated = replacePreview(markdown, content);
   if (updated === markdown) {
     console.log("README preview is already up to date.");
-    return;
+    return false;
   }
-  await require("node:fs/promises").writeFile(readmePath, updated);
+  await fs.writeFile(target, updated);
   console.log("README preview updated.");
+  return true;
+}
+
+// Rewrites the gist's existing file in place (renaming it to the team) rather than
+// adding a second file.
+function buildGistFiles(files, { team, content, emoji }) {
+  const filename = Object.keys(files || {})[0];
+  if (!filename) {
+    throw new Error("Gist has no files to update.");
+  }
+  return {
+    [filename]: {
+      filename: `${emoji} ${team.full_name} — NBA.md`,
+      content,
+    },
+  };
 }
 
 async function updateGist(config, team, content, emoji) {
@@ -591,15 +650,9 @@ async function updateGist(config, team, content, emoji) {
   }
 
   try {
-    const filename = Object.keys(gist.data.files)[0];
     await octokit.gists.update({
       gist_id: config.gistId,
-      files: {
-        [filename]: {
-          filename: `${emoji} ${team.full_name} — NBA.md`,
-          content,
-        },
-      },
+      files: buildGistFiles(gist.data.files, { team, content, emoji }),
     });
     console.log("✅ Gist updated successfully!");
   } catch (error) {
@@ -619,6 +672,9 @@ module.exports = {
   formatStanding,
   formatSeed,
   formatRecordDetails,
+  parseTeam,
+  parseSchedule,
+  parseStandings,
   parseGame,
   formatGameResult,
   formatNextGame,
@@ -629,6 +685,9 @@ module.exports = {
   validateConfig,
   renderGist,
   scheduleSeasons,
+  fetchTeamSeason,
+  buildGistFiles,
+  writeReadme,
   replacePreview,
   PREVIEW_START,
   PREVIEW_END,

@@ -47,7 +47,8 @@ The block above is generated from the live example gist and refreshed once a day
 - 🔴 **Live scores** with the game clock while your team plays.
 - 📊 **Season record** with a win-rate bar, division/conference standing, playoff seed, home/road
   splits, current streak and last-10 form.
-- 📅 **Last five results** and the **next game** with tip-off time in ET.
+- 📅 **Last five results** and the **next game** with tip-off time in ET, including preseason games
+  (marked `PS`, with a preseason tally until the regular season starts).
 - 🏀 **All 30 teams** — just set one abbreviation.
 - 🔁 **No maintenance** — GitHub Actions refreshes the gist hourly.
 - 🔑 **No API key** — ESPN's public endpoints only.
@@ -104,7 +105,9 @@ NBA_TEAM=LAL node index.js --demo
 ## ❓ FAQ
 
 **The gist still shows the previous season's record during the offseason** — that is expected: until a
-game of the new season has been played, the most recently completed season is shown.
+preseason or regular-season game has been played, the most recently completed season is shown. Once the
+preseason starts, current games appear with a `PS` marker and a `📊 Preseason: 2W - 3L` tally replaces
+the regular-season record.
 
 **The workflow fails with `Missing required environment variable(s)`** — one of `GIST_ID`, `GH_TOKEN`
 or `NBA_TEAM` is not set as a repository secret (Settings → Secrets and variables → Actions).
