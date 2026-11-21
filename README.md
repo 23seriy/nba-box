@@ -2,13 +2,16 @@
 
 > Update a pinned gist to contain your favourite NBA team's stats and logo
 
-📌✨ For more pinned-gist projects like this one, check out: [awesome-pinned-gists](https://github.com/matchai/awesome-pinned-gists)
+[![CI](https://github.com/23seriy/nba-box/actions/workflows/ci.yml/badge.svg)](https://github.com/23seriy/nba-box/actions/workflows/ci.yml)
+[![Update NBA Gist](https://github.com/23seriy/nba-box/actions/workflows/schedule.yml/badge.svg)](https://github.com/23seriy/nba-box/actions/workflows/schedule.yml)
 
-🔎 **[See a live example gist →](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)**
+📌✨ For more pinned-gist projects like this one, check out [awesome-pinned-gists](https://github.com/matchai/awesome-pinned-gists).
+
+🔎 **[Browse a live example gist →](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — refreshed every hour.
 
 ---
 
-## Preview
+## What it shows
 
 <!-- preview:start -->
 
@@ -34,11 +37,32 @@ Western Conference · Pacific Division
 
 <!-- preview:end -->
 
-While a game is in progress the gist also shows a 🔴 Live line with the score and game clock.
+A game in progress appears as a 🔴 Live line with the score and game clock, above the next game.
 
-**[Live example](https://gist.github.com/23seriy/48decce0c3243d968abb6e30e480eccb)** — a real gist, refreshed every hour. This preview is updated from it once a day.
+The block above is generated from the live example gist and refreshed once a day.
+
+### Features
+
+- 🔴 **Live scores** with the game clock while your team plays.
+- 📊 **Season record** with a win-rate bar and division/conference standing.
+- 📅 **Last five results** and the **next game** with tip-off time in ET.
+- 🏀 **All 30 teams** — just set one abbreviation.
+- 🔁 **No maintenance** — GitHub Actions refreshes the gist hourly.
+- 🔑 **No API key** — ESPN's public endpoints only.
+
+### How it works
+
+GitHub Actions refreshes the gist every hour, so results and live scores appear within the hour. The
+season is read from ESPN rather than the calendar: until a game of the new season is played, the most
+recently completed season (including its playoff run) is shown instead of an empty record.
 
 ## Setup
+
+### Requirements
+
+- A **public** gist, so it can be pinned to your profile.
+- A **classic** personal access token with the `gist` scope — fine-grained tokens cannot access gists.
+- Node.js 26+ for local runs only; the scheduled workflow needs nothing but the secrets below.
 
 ### Prep Work
 
@@ -62,22 +86,18 @@ While a game is in progress the gist also shows a 🔴 Live line with the score 
 
 ### Run Locally
 
-Requires Node.js 26+.
-
 ```bash
-cp .env.example .env
-# Fill in your values (.env is git-ignored, never commit it)
+cp .env.example .env   # .env is git-ignored, never commit it
+# Fill in GIST_ID, GH_TOKEN and NBA_TEAM
 npm install
 npm start
-# Or preview the output offline, no GIST_ID/GH_TOKEN needed:
-NBA_TEAM=LAL node index.js --demo
-# Also refresh the README preview block (used by the daily workflow):
-NBA_TEAM=LAL node index.js --update-readme
 ```
 
-The gist is refreshed automatically every hour, so results and live scores show up within an hour of
-happening. The season is detected from ESPN, so when no game of the upcoming season has been played
-yet, the most recently completed season (including playoff games) is shown instead of an empty record.
+Preview the output without a gist or token:
+
+```bash
+NBA_TEAM=LAL node index.js --demo
+```
 
 ## ❓ FAQ
 
@@ -108,28 +128,42 @@ file to the new team; the pinned gist itself is reused, so no action is needed.
 
 | | Team | Abbr | | | Team | Abbr |
 |---|------|------|-|---|------|------|
-| <img src="https://cdn.nba.com/logos/nba/1610612737/global/L/logo.svg" width="20"> | Atlanta Hawks | ATL | | <img src="https://cdn.nba.com/logos/nba/1610612749/global/L/logo.svg" width="20"> | Milwaukee Bucks | MIL |
-| <img src="https://cdn.nba.com/logos/nba/1610612738/global/L/logo.svg" width="20"> | Boston Celtics | BOS | | <img src="https://cdn.nba.com/logos/nba/1610612750/global/L/logo.svg" width="20"> | Minnesota Timberwolves | MIN |
-| <img src="https://cdn.nba.com/logos/nba/1610612751/global/L/logo.svg" width="20"> | Brooklyn Nets | BKN | | <img src="https://cdn.nba.com/logos/nba/1610612740/global/L/logo.svg" width="20"> | New Orleans Pelicans | NOP |
-| <img src="https://cdn.nba.com/logos/nba/1610612766/global/L/logo.svg" width="20"> | Charlotte Hornets | CHA | | <img src="https://cdn.nba.com/logos/nba/1610612752/global/L/logo.svg" width="20"> | New York Knicks | NYK |
-| <img src="https://cdn.nba.com/logos/nba/1610612741/global/L/logo.svg" width="20"> | Chicago Bulls | CHI | | <img src="https://cdn.nba.com/logos/nba/1610612760/global/L/logo.svg" width="20"> | Oklahoma City Thunder | OKC |
-| <img src="https://cdn.nba.com/logos/nba/1610612739/global/L/logo.svg" width="20"> | Cleveland Cavaliers | CLE | | <img src="https://cdn.nba.com/logos/nba/1610612753/global/L/logo.svg" width="20"> | Orlando Magic | ORL |
-| <img src="https://cdn.nba.com/logos/nba/1610612742/global/L/logo.svg" width="20"> | Dallas Mavericks | DAL | | <img src="https://cdn.nba.com/logos/nba/1610612755/global/L/logo.svg" width="20"> | Philadelphia 76ers | PHI |
-| <img src="https://cdn.nba.com/logos/nba/1610612743/global/L/logo.svg" width="20"> | Denver Nuggets | DEN | | <img src="https://cdn.nba.com/logos/nba/1610612756/global/L/logo.svg" width="20"> | Phoenix Suns | PHX |
-| <img src="https://cdn.nba.com/logos/nba/1610612765/global/L/logo.svg" width="20"> | Detroit Pistons | DET | | <img src="https://cdn.nba.com/logos/nba/1610612757/global/L/logo.svg" width="20"> | Portland Trail Blazers | POR |
-| <img src="https://cdn.nba.com/logos/nba/1610612744/global/L/logo.svg" width="20"> | Golden State Warriors | GSW | | <img src="https://cdn.nba.com/logos/nba/1610612758/global/L/logo.svg" width="20"> | Sacramento Kings | SAC |
-| <img src="https://cdn.nba.com/logos/nba/1610612745/global/L/logo.svg" width="20"> | Houston Rockets | HOU | | <img src="https://cdn.nba.com/logos/nba/1610612759/global/L/logo.svg" width="20"> | San Antonio Spurs | SAS |
-| <img src="https://cdn.nba.com/logos/nba/1610612754/global/L/logo.svg" width="20"> | Indiana Pacers | IND | | <img src="https://cdn.nba.com/logos/nba/1610612761/global/L/logo.svg" width="20"> | Toronto Raptors | TOR |
-| <img src="https://cdn.nba.com/logos/nba/1610612746/global/L/logo.svg" width="20"> | LA Clippers | LAC | | <img src="https://cdn.nba.com/logos/nba/1610612762/global/L/logo.svg" width="20"> | Utah Jazz | UTA |
-| <img src="https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg" width="20"> | Los Angeles Lakers | LAL | | <img src="https://cdn.nba.com/logos/nba/1610612764/global/L/logo.svg" width="20"> | Washington Wizards | WAS |
-| <img src="https://cdn.nba.com/logos/nba/1610612763/global/L/logo.svg" width="20"> | Memphis Grizzlies | MEM | | <img src="https://cdn.nba.com/logos/nba/1610612748/global/L/logo.svg" width="20"> | Miami Heat | MIA |
+| <img src="https://cdn.nba.com/logos/nba/1610612737/global/L/logo.svg" width="20"> | Atlanta Hawks | ATL | | <img src="https://cdn.nba.com/logos/nba/1610612748/global/L/logo.svg" width="20"> | Miami Heat | MIA |
+| <img src="https://cdn.nba.com/logos/nba/1610612738/global/L/logo.svg" width="20"> | Boston Celtics | BOS | | <img src="https://cdn.nba.com/logos/nba/1610612749/global/L/logo.svg" width="20"> | Milwaukee Bucks | MIL |
+| <img src="https://cdn.nba.com/logos/nba/1610612751/global/L/logo.svg" width="20"> | Brooklyn Nets | BKN | | <img src="https://cdn.nba.com/logos/nba/1610612750/global/L/logo.svg" width="20"> | Minnesota Timberwolves | MIN |
+| <img src="https://cdn.nba.com/logos/nba/1610612766/global/L/logo.svg" width="20"> | Charlotte Hornets | CHA | | <img src="https://cdn.nba.com/logos/nba/1610612740/global/L/logo.svg" width="20"> | New Orleans Pelicans | NOP |
+| <img src="https://cdn.nba.com/logos/nba/1610612741/global/L/logo.svg" width="20"> | Chicago Bulls | CHI | | <img src="https://cdn.nba.com/logos/nba/1610612752/global/L/logo.svg" width="20"> | New York Knicks | NYK |
+| <img src="https://cdn.nba.com/logos/nba/1610612739/global/L/logo.svg" width="20"> | Cleveland Cavaliers | CLE | | <img src="https://cdn.nba.com/logos/nba/1610612760/global/L/logo.svg" width="20"> | Oklahoma City Thunder | OKC |
+| <img src="https://cdn.nba.com/logos/nba/1610612742/global/L/logo.svg" width="20"> | Dallas Mavericks | DAL | | <img src="https://cdn.nba.com/logos/nba/1610612753/global/L/logo.svg" width="20"> | Orlando Magic | ORL |
+| <img src="https://cdn.nba.com/logos/nba/1610612743/global/L/logo.svg" width="20"> | Denver Nuggets | DEN | | <img src="https://cdn.nba.com/logos/nba/1610612755/global/L/logo.svg" width="20"> | Philadelphia 76ers | PHI |
+| <img src="https://cdn.nba.com/logos/nba/1610612765/global/L/logo.svg" width="20"> | Detroit Pistons | DET | | <img src="https://cdn.nba.com/logos/nba/1610612756/global/L/logo.svg" width="20"> | Phoenix Suns | PHX |
+| <img src="https://cdn.nba.com/logos/nba/1610612744/global/L/logo.svg" width="20"> | Golden State Warriors | GSW | | <img src="https://cdn.nba.com/logos/nba/1610612757/global/L/logo.svg" width="20"> | Portland Trail Blazers | POR |
+| <img src="https://cdn.nba.com/logos/nba/1610612745/global/L/logo.svg" width="20"> | Houston Rockets | HOU | | <img src="https://cdn.nba.com/logos/nba/1610612758/global/L/logo.svg" width="20"> | Sacramento Kings | SAC |
+| <img src="https://cdn.nba.com/logos/nba/1610612754/global/L/logo.svg" width="20"> | Indiana Pacers | IND | | <img src="https://cdn.nba.com/logos/nba/1610612759/global/L/logo.svg" width="20"> | San Antonio Spurs | SAS |
+| <img src="https://cdn.nba.com/logos/nba/1610612746/global/L/logo.svg" width="20"> | LA Clippers | LAC | | <img src="https://cdn.nba.com/logos/nba/1610612761/global/L/logo.svg" width="20"> | Toronto Raptors | TOR |
+| <img src="https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg" width="20"> | Los Angeles Lakers | LAL | | <img src="https://cdn.nba.com/logos/nba/1610612762/global/L/logo.svg" width="20"> | Utah Jazz | UTA |
+| <img src="https://cdn.nba.com/logos/nba/1610612763/global/L/logo.svg" width="20"> | Memphis Grizzlies | MEM | | <img src="https://cdn.nba.com/logos/nba/1610612764/global/L/logo.svg" width="20"> | Washington Wizards | WAS |
 
-## Data Source
+## 🔌 Data source
 
-Team data powered by ESPN's public APIs (no API key required).
+Everything comes from ESPN's public endpoints — no API key, no scraping:
 
-Team logos available at: `https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg`
+| Data | Endpoint |
+|------|----------|
+| Season record, division/conference standing | `site.web.api.espn.com/apis/v2/sports/basketball/nba/standings` |
+| Schedule, results, next game | `site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{id}/schedule` |
+| Live scores and game clock | `site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard` |
 
-## License
+Team logos: `https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg`
 
-MIT
+The season is read from ESPN rather than the calendar, and regular-season and postseason games are
+requested separately because ESPN numbers those seasons a year apart.
+
+## 🤝 Contributing
+
+Bug reports and pull requests are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) and the
+[code of conduct](./CODE_OF_CONDUCT.md). For security issues, see [SECURITY.md](./SECURITY.md).
+
+## 📄 License
+
+[MIT](./LICENSE) © Sergei Olshanetski

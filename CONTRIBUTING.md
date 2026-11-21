@@ -32,10 +32,29 @@ npm start
 
 ### Demo Mode
 
-You can preview output without API keys:
+Preview the output without a gist or token:
 
 ```bash
 NBA_TEAM=BOS node index.js --demo
+```
+
+### Refreshing the README preview
+
+The block between `<!-- preview:start -->` and `<!-- preview:end -->` is generated from the gist
+content and refreshed by the daily workflow. To update it locally you need working credentials:
+
+```bash
+GIST_ID=... GH_TOKEN=... NBA_TEAM=LAL node index.js --update-readme
+```
+
+The gist itself is still updated by that run, so prefer `--demo` while developing.
+
+### Tests
+
+```bash
+npm test        # node:test, no extra dependencies
+npm run lint
+npm run build   # rebuild dist/ after changing index.js
 ```
 
 ## Pull Request Guidelines
