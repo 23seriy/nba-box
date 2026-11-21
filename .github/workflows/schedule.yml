@@ -1,7 +1,9 @@
 name: Update NBA Gist
 on:
   schedule:
-    - cron: "0 0 * * *" # Every day at 00:00 UTC
+    # Just after midnight UTC. GitHub delays scheduled runs most at the top of the
+    # hour, so a non-zero minute is more reliable.
+    - cron: "17 0 * * *"
   workflow_dispatch:
 jobs:
   update-gist:

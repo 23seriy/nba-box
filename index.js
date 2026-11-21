@@ -6,6 +6,9 @@ const { GH_TOKEN: githubToken } = process.env;
 
 const ESPN_BASE = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba";
 const ESPN_BASE_V2 = "https://site.web.api.espn.com/apis/v2/sports/basketball/nba";
+// The per-team schedule omits scores until a game is final, so in-progress games
+// are read from the league scoreboard.
+const ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard";
 const ESPN_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
   "Accept": "application/json",
@@ -14,7 +17,6 @@ const ESPN_HEADERS = {
 };
 
 const octokit = new Octokit({ auth: `token ${githubToken}` });
-const DEFAULT_TEAM = "LAL";
 
 const PLACEHOLDER_VALUES = {
   gistId: ["your_gist_id_here"],
@@ -162,6 +164,37 @@ function toScore(score) {
   return score?.value ?? parseFloat(score) ?? 0;
 }
 
+function parseLiveGame(scoreboard, teamAbbr) {
+  for (const event of scoreboard?.events || []) {
+    const comp = event.competitions?.[0];
+    if (comp?.status?.type?.state !== "in") continue;
+    const isTeam = (c) => c.team?.abbreviation?.toUpperCase() === teamAbbr.toUpperCase();
+    const teamComp = comp.competitors?.find(isTeam);
+    const oppComp = comp.competitors?.find((c) => !isTeam(c));
+    if (!teamComp || !oppComp) continue;
+    return {
+      date: event.date,
+      detail: comp.status.type.detail || comp.status.displayClock || "In Progress",
+      opponent: oppComp.team.abbreviation,
+      isHome: teamComp.homeAway === "home",
+      teamScore: toScore(teamComp.score),
+      oppScore: toScore(oppComp.score),
+    };
+  }
+  return null;
+}
+
+async function fetchLiveGame(teamAbbr) {
+  try {
+    const espnAbbr = ESPN_ABBR[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
+    const { data } = await axios.get(ESPN_SCOREBOARD, { headers: ESPN_HEADERS });
+    return parseLiveGame(data, espnAbbr);
+  } catch (error) {
+    console.error(`Failed to fetch live score: ${error.message}`);
+    return null;
+  }
+}
+
 async function fetchStandings(teamAbbr, season) {
   try {
     const espnAbbr = ESPN_ABBR[teamAbbr.toUpperCase()] || teamAbbr.toUpperCase();
@@ -224,6 +257,11 @@ function formatGameResult(game) {
   });
 
   return `${icon} ${result} ${String(game.teamScore).padStart(3)}-${String(game.oppScore).padEnd(3)} ${prefix} ${game.opponent.padEnd(3)} (${dateStr})`;
+}
+
+function formatLiveGame(game) {
+  const prefix = game.isHome ? "vs" : "@";
+  return `🔴 Live: ${prefix} ${game.opponent} — ${game.teamScore}-${game.oppScore} (${game.detail})`;
 }
 
 function formatNextGame(game) {
@@ -347,7 +385,7 @@ function validateConfig(env = process.env, { demo = false } = {}) {
   return config;
 }
 
-function renderGist({ team, games, record, season }) {
+function renderGist({ team, games, record, season, liveGame }) {
   const emoji = TEAM_EMOJI[team.abbreviation] || "🏀";
   const nbaId = NBA_TEAM_IDS[team.abbreviation] || 0;
   const logoUrl = `https://cdn.nba.com/logos/nba/${nbaId}/global/L/logo.svg`;
@@ -394,6 +432,11 @@ function renderGist({ team, games, record, season }) {
     lines.push("📅 No completed games in this season yet");
   }
 
+  if (liveGame) {
+    lines.push("");
+    lines.push(formatLiveGame(liveGame));
+  }
+
   if (nextGame) {
     lines.push("");
     lines.push(formatNextGame(nextGame));
@@ -404,14 +447,14 @@ function renderGist({ team, games, record, season }) {
 
 async function main(env = process.env) {
   const config = validateConfig(env, { demo: isDemo });
-  const teamAbbr = (config.nbaTeam || DEFAULT_TEAM).toUpperCase();
+  const teamAbbr = config.nbaTeam.toUpperCase();
   if (isDemo) {
     console.log("Preview only (--demo): the gist will not be updated.");
   }
 
   console.log(`🏀 ${isDemo ? "[DEMO] " : ""}Fetching data for ${teamAbbr}...`);
 
-  let team, games, record, season;
+  let team, games, record, season, liveGame = null;
 
   if (isDemo) {
     ({ team, games, record, season } = getDemoData(teamAbbr));
@@ -426,17 +469,21 @@ async function main(env = process.env) {
       team.conference = record.conference;
       team.division = record.division;
     }
+    liveGame = await fetchLiveGame(teamAbbr);
   }
 
   console.log(`Found: ${team.full_name} (${team.abbreviation})`);
 
-  const { emoji, content } = renderGist({ team, games, record, season });
+  const { emoji, content } = renderGist({ team, games, record, season, liveGame });
   console.log("\n--- Gist Preview ---");
   console.log(content);
   console.log("--- End Preview ---\n");
 
   if (updateReadme && !isDemo) {
-    await writeReadme(content);
+    // The README is documentation: keep the transient in-game line out of it so
+    // the preview does not describe a game that finished hours ago.
+    const readmeContent = renderGist({ team, games, record, season }).content;
+    await writeReadme(readmeContent);
   }
 
   if (isDemo) {
@@ -497,6 +544,8 @@ module.exports = {
   parseGame,
   formatGameResult,
   formatNextGame,
+  formatLiveGame,
+  parseLiveGame,
   generateBarChart,
   getDemoData,
   validateConfig,
