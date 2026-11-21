@@ -20,18 +20,18 @@
 ### 👑 Los Angeles Lakers (LAL)
 Western Conference · Pacific Division
 
-📊 2026-2027 Record: 13W - 3L (81.3%)
-   ████████████████████▎░░░░
-🏅 1st in Pacific Division
-🏠 6-2 · ✈️ 7-1 · 🔥 L1 · 📈 Last 10: 9-1
+📊 2026-2027 Record: 14W - 3L (82.4%)
+   ████████████████████▌░░░░
+🏅 1st in Pacific Division · #1 seed
+🏠 7-2 · ✈️ 7-1 · 🔥 W1 · 📈 Last 10: 9-1
 
 **📅 Recent Games:**
 ```
+✅ W 106-104 vs SAC (Nov 20)
 ❌ L  97-109 vs UTAH (Nov 18)
 ✅ W 118-114 vs CHA (Nov 17)
 ✅ W 131-123 @ PHX (Nov 15)
 ✅ W 123-112 @ MIL (Nov 11)
-✅ W 124-114 @ ATL (Nov 9)
 ```
 
 🏟️ Next: vs UTAH — Nov 23, 10:00 PM ET
@@ -45,8 +45,8 @@ The block above is generated from the live example gist and refreshed once a day
 ### Features
 
 - 🔴 **Live scores** with the game clock while your team plays.
-- 📊 **Season record** with a win-rate bar, division/conference standing, home/road splits, current
-  streak and last-10 form.
+- 📊 **Season record** with a win-rate bar, division/conference standing, playoff seed, home/road
+  splits, current streak and last-10 form.
 - 📅 **Last five results** and the **next game** with tip-off time in ET.
 - 🏀 **All 30 teams** — just set one abbreviation.
 - 🔁 **No maintenance** — GitHub Actions refreshes the gist hourly.

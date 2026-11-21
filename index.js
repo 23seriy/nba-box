@@ -103,6 +103,12 @@ function formatRecordDetails(record) {
   return parts.join(" · ");
 }
 
+// A concise playoff seed, or "" when ESPN has not assigned one yet.
+function formatSeed(seed) {
+  const value = Number(seed);
+  return Number.isInteger(value) && value > 0 && value <= 30 ? `#${value} seed` : "";
+}
+
 function formatStanding(summary) {
   // ESPN reports play-in teams as e.g. "10th in Eastern Conference Division".
   return summary.replace(/ Conference Division$/, " Conference");
@@ -242,6 +248,7 @@ async function fetchStandings(teamAbbr, season) {
             road: stats.Road,
             streak: stats.streak,
             lastTen: stats["Last Ten Games"],
+            seed: stats.playoffSeed,
           };
         }
       }
@@ -393,6 +400,7 @@ function getDemoData(teamAbbr) {
       road: "22-12",
       streak: "W2",
       lastTen: "7-3",
+      seed: "1",
     },
     season: espnSeason(),
   };
@@ -476,8 +484,10 @@ function renderGist({ team, games, record, season, liveGame }) {
   if (wins + losses > 0) {
     lines.push(`📊 ${season - 1}-${season} Record: ${wins}W - ${losses}L (${winPct}%)`);
     lines.push(`   ${generateBarChart(parseFloat(winPct), 25)}`);
-    if (team.standingSummary) {
-      lines.push(`🏅 ${formatStanding(team.standingSummary)}`);
+    const standing = team.standingSummary ? formatStanding(team.standingSummary) : "";
+    const seed = formatSeed(record?.seed);
+    if (standing || seed) {
+      lines.push(`🏅 ${[standing, seed].filter(Boolean).join(" · ")}`);
     }
     const details = formatRecordDetails(record);
     if (details) {
@@ -607,6 +617,7 @@ if (require.main === module) {
 module.exports = {
   espnSeason,
   formatStanding,
+  formatSeed,
   formatRecordDetails,
   parseGame,
   formatGameResult,
