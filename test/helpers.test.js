@@ -24,6 +24,10 @@ const {
   getDemoData,
   validateConfig,
   renderGist,
+  hasUsableData,
+  TEAM_EMOJI,
+  NBA_TEAM_IDS,
+  ESPN_TEAM_IDS,
   scheduleSeasons,
   replacePreview,
   PREVIEW_START,
@@ -858,4 +862,70 @@ test("renderGist separates the stat lines with markdown hard breaks", () => {
   assert.ok(lines[1].trimStart().startsWith("`"));
   assert.ok(lines[1].includes("█"));
   assert.ok(lines[1].replace("<br>", "").trimEnd().endsWith("`"));
+});
+
+// --- outage protection -----------------------------------------------------
+
+test("hasUsableData rejects an ESPN outage so the gist is not overwritten", () => {
+  // Nothing came back: the previous gist is better than a stub.
+  assert.equal(hasUsableData({ games: [], record: null, liveGame: null }), false);
+  assert.equal(hasUsableData({ games: [], record: { wins: 0, losses: 0 } }), false);
+  assert.equal(hasUsableData({}), false);
+  assert.equal(hasUsableData(), false);
+});
+
+test("hasUsableData rejects standings without any games", () => {
+  // Standings loaded but the schedule query failed, which would render a record
+  // next to "No completed games in this season yet".
+  assert.equal(hasUsableData({ games: [], record: { wins: 14, losses: 3 } }), false);
+});
+
+test("hasUsableData accepts games, upcoming fixtures and live scores", () => {
+  assert.equal(hasUsableData({ games: [{ completed: true }], record: null }), true);
+  assert.equal(hasUsableData({ games: [{ completed: false }], record: { wins: 0, losses: 0 } }), true);
+  assert.equal(hasUsableData({ games: [], record: { wins: 0, losses: 0 }, liveGame: { opponent: "UTAH" } }), true);
+});
+
+test("a degraded render is what the guard prevents", () => {
+  // Without the guard this 3-line stub would replace a full gist.
+  const { content } = renderGist({
+    team: { abbreviation: "LAL", full_name: "Los Angeles Lakers", conference: "", division: "" },
+    games: [],
+    record: null,
+    season: 2026,
+  });
+  assert.ok(content.includes("No completed games in this season yet"));
+  assert.ok(content.split("\n").filter((line) => line.trim()).length <= 4);
+});
+
+// --- team data consistency -------------------------------------------------
+
+test("every team is defined in all three maps", () => {
+  const emoji = Object.keys(TEAM_EMOJI);
+  const nba = Object.keys(NBA_TEAM_IDS);
+  const espn = Object.keys(ESPN_TEAM_IDS);
+
+  assert.equal(emoji.length, 30);
+  assert.deepEqual(emoji.sort(), nba.sort());
+  assert.deepEqual(emoji.sort(), espn.sort());
+  // NBA.com ids are unique and in the 1610612737+ range.
+  for (const id of Object.values(NBA_TEAM_IDS)) {
+    assert.ok(Number.isInteger(id) && id > 1610612000, `unexpected NBA id ${id}`);
+  }
+  assert.equal(new Set(Object.values(ESPN_TEAM_IDS)).size, 30);
+});
+
+test("the README abbreviation table matches the supported teams", async () => {
+  // `fs` here is node:fs/promises.
+  const readme = await fs.readFile(path.join(__dirname, "..", "README.md"), "utf8");
+  const rows = [...readme.matchAll(/<img src="https:\/\/cdn\.nba\.com\/logos\/nba\/(\d+)\/global\/L\/logo\.svg" width="20"> \| [^|]+ \| ([A-Z]{2,4})/g)];
+
+  assert.equal(rows.length, 30, "expected 30 rows in the team table");
+  const documented = rows.map(([, id, abbr]) => ({ id, abbr }));
+  assert.deepEqual(documented.map((r) => r.abbr).sort(), Object.keys(NBA_TEAM_IDS).sort());
+
+  // Logo ids in the table must match the ids the code uses.
+  for (const { id, abbr } of documented) {
+    assert.equal(Number(id), NBA_TEAM_IDS[abbr], `logo id for ${abbr} is out of date`);
+  }
 });

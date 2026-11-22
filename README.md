@@ -22,7 +22,7 @@ Western Conference · Pacific Division
 
 📊 **2026-2027 Record: 14W - 3L (82.4%)**<br>
 `████████████████████▌░░░░`<br>
-🏅 1st in Pacific Division · #1 seed<br>
+🏅 1st in Pacific Division · #2 seed<br>
 🏠 7-2 · ✈️ 7-1 · 🔥 W1 · 📈 Last 10: 9-1
 
 **📅 Recent Games**
@@ -121,6 +121,9 @@ with the `gist` scope.
 
 **The gist does not update after editing the workflow** — scheduled workflows only reload their
 definition after an event triggers the workflow; run it once from **Actions → Update NBA Gist → Run workflow**.
+
+**The run failed with `ESPN returned no games, live score or standings`** — ESPN was unreachable or
+returned a partial response; the gist was left unchanged. Nothing to fix, it clears on the next run.
 
 **The gist is out of date** — scheduled runs can be delayed or skipped, sometimes by hours (and GitHub
 disables them after 60 days without repository activity). Trigger **Actions → Update NBA Gist → Run workflow**
