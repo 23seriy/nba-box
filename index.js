@@ -494,6 +494,17 @@ function validateConfig(env = process.env, { demo = false } = {}) {
   return config;
 }
 
+// Guards against overwriting a good gist with a stub. A transient ESPN failure
+// yields no games, no live score and no usable standings, and a standings-only
+// response means the schedule query failed — either way the game list is the
+// core of the gist, so require it.
+function hasUsableData({ games = [], record, liveGame } = {}) {
+  const hasGames = games.length > 0;
+  const hasRecord = (record?.wins ?? 0) + (record?.losses ?? 0) > 0;
+  const scheduleFailed = hasRecord && !hasGames;
+  return (hasGames || Boolean(liveGame)) && !scheduleFailed;
+}
+
 function renderGist({ team, games, record, season, liveGame }) {
   const emoji = TEAM_EMOJI[team.abbreviation] || "🏀";
   const nbaId = NBA_TEAM_IDS[team.abbreviation] || 0;
@@ -590,7 +601,9 @@ async function main(env = process.env) {
   } else {
     team = await fetchTeam(teamAbbr);
     if (!team) {
-      throw new Error(`Could not find team "${teamAbbr}". Check the NBA_TEAM abbreviation.`);
+      throw new Error(
+        `Could not load team "${teamAbbr}" from ESPN. Check the NBA_TEAM abbreviation and the network.`
+      );
     }
     ({ games, record, season } = await fetchTeamSeason(teamAbbr));
     if (record) {
@@ -598,6 +611,15 @@ async function main(env = process.env) {
       team.division = record.division;
     }
     liveGame = await fetchLiveGame(teamAbbr);
+
+    // Leave the published gist alone rather than replacing it with a stub; the
+    // non-zero exit makes the failure visible in the Actions run.
+    if (!hasUsableData({ games, record, liveGame })) {
+      throw new Error(
+        "ESPN returned no games, live score or standings; leaving the gist unchanged. " +
+          "This is usually a temporary ESPN outage."
+      );
+    }
   }
 
   console.log(`Found: ${team.full_name} (${team.abbreviation})`);
@@ -693,6 +715,10 @@ module.exports = {
   getDemoData,
   validateConfig,
   renderGist,
+  hasUsableData,
+  TEAM_EMOJI,
+  NBA_TEAM_IDS,
+  ESPN_TEAM_IDS,
   scheduleSeasons,
   fetchTeamSeason,
   buildGistFiles,
