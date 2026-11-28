@@ -55,6 +55,13 @@ jobs:
           git push origin "HEAD:refs/heads/$branch"
           gh pr create --head "$branch" --title "docs(readme): refresh preview from the live gist" \
             --body "Automated refresh of the README preview generated from the live gist."
+          # PRs opened with GITHUB_TOKEN do not trigger pull_request workflows, so the
+          # required "lint" check would never report. Run it on the branch, then wait
+          # for it before queueing auto-merge.
+          gh workflow run ci.yml --ref "$branch"
+          timeout 1800 gh run watch \
+            "$(gh run list --workflow=ci.yml --branch "$branch" --limit 1 --json databaseId --jq '.[0].databaseId')" \
+            --exit-status
           gh pr merge "$branch" --auto --squash --delete-branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
