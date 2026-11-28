@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Lets calling workflows request checks for a branch they just pushed;
+  # PRs opened by GITHUB_TOKEN do not trigger the pull_request event.
+  workflow_dispatch:
 jobs:
   lint:
     runs-on: ubuntu-latest
