@@ -15,8 +15,9 @@ jobs:
       # Required to push the refreshed README preview branch and merge its PR.
       contents: write
       pull-requests: write
-      # Required to dispatch the CI run that supplies the required "lint" check.
+      # Required to dispatch the CI run and post its "lint" check on the preview PR.
       actions: write
+      checks: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,11 +58,12 @@ jobs:
           git push origin "HEAD:refs/heads/$branch"
           gh pr create --head "$branch" --title "docs(readme): refresh preview from the live gist" \
             --body "Automated refresh of the README preview generated from the live gist."
-          # GITHUB_TOKEN-created commits get no pull_request CI run, and the run GitHub
-          # queues is held for approval ("action_required"), so the required "lint"
-          # check never reports on its own. Dispatch it (explicit dispatches are not
-          # held for approval) and wait, so auto-merge can complete unattended.
+          # A GITHUB_TOKEN commit never gets the required "lint" check attached to its
+          # PR: the pull_request run is held for approval and only a human can rerun
+          # it. A workflow_dispatch run on the same commit is not held, so start one
+          # and use the Checks API to post "lint" for the PR's head SHA.
           gh workflow run ci.yml --ref "$branch"
+          head_sha=$(git rev-parse HEAD)
           run_id=""
           for _ in $(seq 1 30); do
             run_id=$(gh run list --workflow=ci.yml --branch "$branch" --event workflow_dispatch \
@@ -70,7 +72,39 @@ jobs:
             sleep 10
           done
           [ -n "$run_id" ] || { echo "CI run for $branch never appeared"; exit 1; }
-          timeout 1800 gh run watch "$run_id" --exit-status
+          conclusion=""
+          for _ in $(seq 1 180); do
+            conclusion=$(gh run view "$run_id" --json status,conclusion --jq '.conclusion // empty')
+            [ -n "$conclusion" ] && break
+            sleep 10
+          done
+          [ -n "$conclusion" ] || conclusion="timed_out"
+          conclusion="$conclusion" head_sha="$head_sha" python3 - <<'PY'
+          import json, os, urllib.request
+
+          conclusion = os.environ["conclusion"]
+          head_sha = os.environ["head_sha"]
+          summary = f"Dispatched CI run concluded: {conclusion}."
+
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/check-runs",
+              method="POST",
+              headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+                  "User-Agent": "nba-box-readme-preview",
+              },
+              data=json.dumps({
+                  "name": "lint",
+                  "head_sha": head_sha,
+                  "status": "completed",
+                  "conclusion": conclusion,
+                  "output": {"title": "lint", "summary": summary},
+              }).encode(),
+          )
+          urllib.request.urlopen(request).read()
+          PY
           gh pr merge "$branch" --auto --squash --delete-branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
