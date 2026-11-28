@@ -57,13 +57,14 @@ jobs:
           git push origin "HEAD:refs/heads/$branch"
           gh pr create --head "$branch" --title "docs(readme): refresh preview from the live gist" \
             --body "Automated refresh of the README preview generated from the live gist."
-          # PRs opened with GITHUB_TOKEN do not trigger pull_request workflows, so the
-          # required "lint" check would never report. Run it on the branch, then wait
-          # for it before queueing auto-merge.
+          # GITHUB_TOKEN-created commits get no pull_request CI run, and the run GitHub
+          # queues is held for approval ("action_required"), so the required "lint"
+          # check never reports on its own. Dispatch it (explicit dispatches are not
+          # held for approval) and wait, so auto-merge can complete unattended.
           gh workflow run ci.yml --ref "$branch"
           run_id=""
           for _ in $(seq 1 30); do
-            run_id=$(gh run list --workflow=ci.yml --branch "$branch" \
+            run_id=$(gh run list --workflow=ci.yml --branch "$branch" --event workflow_dispatch \
               --json databaseId --jq '.[0].databaseId // empty')
             [ -n "$run_id" ] && break
             sleep 10
