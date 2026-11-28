@@ -61,9 +61,15 @@ jobs:
           # required "lint" check would never report. Run it on the branch, then wait
           # for it before queueing auto-merge.
           gh workflow run ci.yml --ref "$branch"
-          timeout 1800 gh run watch \
-            "$(gh run list --workflow=ci.yml --branch "$branch" --limit 1 --json databaseId --jq '.[0].databaseId')" \
-            --exit-status
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --workflow=ci.yml --branch "$branch" \
+              --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run_id" ] && break
+            sleep 10
+          done
+          [ -n "$run_id" ] || { echo "CI run for $branch never appeared"; exit 1; }
+          timeout 1800 gh run watch "$run_id" --exit-status
           gh pr merge "$branch" --auto --squash --delete-branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
