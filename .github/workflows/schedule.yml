@@ -12,8 +12,9 @@ jobs:
   update-gist:
     runs-on: ubuntu-latest
     permissions:
-      # Required to commit the refreshed README preview back to main.
+      # Required to push the refreshed README preview branch and merge its PR.
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,4 +46,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add README.md
           git commit -m "docs(readme): refresh preview from the live gist"
-          git push
+          # main requires the "lint" status check, so pushing straight from a scheduled
+          # run is rejected (GH006). Open a PR instead and queue auto-merge so GitHub
+          # merges it as soon as the required checks pass. Requires the repo settings
+          # "Read and write" workflow permissions and "Allow GitHub Actions to create
+          # and approve pull requests".
+          branch="docs/readme-preview-$(date -u +%Y%m%d-%H%M%S)"
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create --head "$branch" --title "docs(readme): refresh preview from the live gist" \
+            --body "Automated refresh of the README preview generated from the live gist."
+          gh pr merge "$branch" --auto --squash --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
