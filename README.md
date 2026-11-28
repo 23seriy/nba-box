@@ -177,4 +177,3 @@ Bug reports and pull requests are welcome — see [CONTRIBUTING.md](./CONTRIBUTI
 ## 📄 License
 
 [MIT](./LICENSE) © Sergei Olshanetski
-TEMPORARY validation nudge
